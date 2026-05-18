@@ -162,6 +162,8 @@ export function calculateWorkforceConsumption(
   const rates = new Map<string, WorkforceRateEntry>();
 
   for (const workforce of workforces) {
+    if (workforce.population <= 1) continue;
+    if (workforce.capacity === 0) continue;
     for (const need of workforce.needs) {
       const ticker = need.material.ticker;
       // unitsPerInterval is already the daily rate
@@ -338,7 +340,7 @@ export function calculateSiteBurn(siteId: string): SiteBurnSummary {
       daysRemaining = Infinity;
     } else {
       daysRemaining =
-        inventoryAmount === 0 ? 0 : inventoryAmount / Math.abs(dailyAmount);
+        inventoryAmount === 0 ? 0 : Math.floor(inventoryAmount / Math.abs(dailyAmount));
     }
 
     const type = classifyBurnType(
