@@ -1,0 +1,41 @@
+name: Build Firefox XPI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build Firefox extension
+        run: pnpm run build:firefox
+
+      - name: Create XPI archive
+        run: pnpm run zip:firefox
+
+      - name: Find and upload XPI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apxm-firefox-xpi
+          path: .output/firefox-mv2/*.xpi
+          retention-days: 30
