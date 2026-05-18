@@ -98,6 +98,32 @@ pnpm run build:firefox    # Firefox MV2 -> .output/firefox-mv2/
 pnpm run test             # Run test suite (303 tests)
 ```
 
+`@prun/link` is a private dependency pulled from GitHub. Local development uses
+SSH (your usual `~/.ssh/config`). In sandboxed environments without SSH
+(CI runners, Claude Code on the web, etc.) expose a `GITHUB_TOKEN` with read
+access to `Zillatron27/PrUn-Link` and use the bundled
+`.claude/hooks/session-start.sh` — it rewrites the dep URL to authenticated
+HTTPS and then runs `pnpm install`. Wire it up by adding the following to
+your personal `.claude/settings.json` (or your `context/` repo's copy of it,
+since this repo's `settings.json` is gitignored):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
 ### Development
 
 ```bash
