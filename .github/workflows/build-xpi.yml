@@ -37,5 +37,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: apxm-firefox-xpi
-          path: .output/firefox-mv2/*.xpi
+          path: .output/apxm-*-firefox.zip
           retention-days: 30
