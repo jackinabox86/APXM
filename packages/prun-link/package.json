@@ -1,0 +1,14 @@
+{
+  "name": "@prun/link",
+  "version": "1.0.0",
+  "description": "WebSocket interception and Socket.IO/engine.io decoding for Prosperous Universe (APEX)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./socket-io": "./src/socket-io/index.ts",
+    "./script-control": "./src/script-control/index.ts",
+    "./message-bus/main-world": "./src/message-bus/main-world.ts",
+    "./message-bus/content-bridge": "./src/message-bus/content-bridge.ts"
+  },
+  "license": "MIT"
+}
