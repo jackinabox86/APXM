@@ -33,17 +33,15 @@ jobs:
       - name: Create XPI archive
         run: pnpm run zip:firefox
 
-      - name: Debug - List output files
-        run: ls -la .output/
-
-      - name: Find XPI filename
-        id: xpi
-        run: echo "filename=$(ls .output/apxm-*-firefox.zip)" >> $GITHUB_OUTPUT
+      - name: Debug - Check working directory and files
+        run: |
+          pwd
+          ls -la .output/
 
       - name: Upload XPI artifact
         uses: actions/upload-artifact@v4
         with:
           name: apxm-firefox-xpi
-          path: ${{ steps.xpi.outputs.filename }}
+          path: ${{ github.workspace }}/.output/apxm-*-firefox.zip
           if-no-files-found: warn
           retention-days: 30
