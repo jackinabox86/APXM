@@ -33,9 +33,13 @@ jobs:
       - name: Create XPI archive
         run: pnpm run zip:firefox
 
+      - name: Debug - List output files
+        run: ls -la .output/
+
       - name: Find and upload XPI artifact
         uses: actions/upload-artifact@v4
         with:
           name: apxm-firefox-xpi
-          path: .output/apxm-*-firefox.zip
+          path: .output/*.zip
+          if-no-files-found: warn
           retention-days: 30
