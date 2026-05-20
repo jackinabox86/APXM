@@ -11,6 +11,7 @@ import { openBuffer } from '../buffer-opener';
 import { useScreensStore } from '../../stores/screens';
 import { useSettingsStore } from '../../stores/settings';
 import type { ApxmBridgeMessage, BurnThresholds } from '../../types/bridge';
+import { log, warn } from '../debug/logger';
 
 interface ActiveBridge {
   iframe: HTMLIFrameElement;
@@ -60,7 +61,7 @@ async function connectToIframe(iframe: HTMLIFrameElement): Promise<void> {
   // Wait for iframe to navigate to its src before sending postMessage
   await waitForIframeLoad(iframe);
 
-  console.log('[APXM Bridge] Found shell iframe, starting handshake...');
+  log('Bridge: found shell iframe, starting handshake...');
   const success = await startHandshake(iframe);
   if (!success) return;
 
@@ -79,7 +80,7 @@ async function connectToIframe(iframe: HTMLIFrameElement): Promise<void> {
 
 function disconnectBridge(): void {
   if (activeBridge) {
-    console.log('[APXM Bridge] Disconnecting from shell iframe');
+    log('Bridge: disconnecting from shell iframe');
     activeBridge.cleanup();
     activeBridge = null;
   }
@@ -185,14 +186,14 @@ function handleIncomingMessages(event: MessageEvent): void {
           bt.critical < bt.warning && bt.warning <= bt.resupply
         ) {
           useSettingsStore.getState().setBurnThresholds(bt);
-          console.log('[APXM Bridge] Applied burn threshold update from shell:', bt);
+          log('Bridge: applied burn threshold update from shell:', bt);
         } else {
-          console.warn('[APXM Bridge] Rejected invalid burn thresholds from shell:', bt);
+          warn('Bridge: rejected invalid burn thresholds from shell:', bt);
         }
       }
       if (typeof settings.rprunFeaturesDisabled === 'boolean') {
         useSettingsStore.getState().setRprunFeaturesDisabled(settings.rprunFeaturesDisabled);
-        console.log('[APXM Bridge] Applied rprun features disabled:', settings.rprunFeaturesDisabled);
+        log('Bridge: applied rprun features disabled:', settings.rprunFeaturesDisabled);
       }
     }
   }
@@ -203,7 +204,7 @@ function handleIncomingMessages(event: MessageEvent): void {
  * Scans for existing iframes and watches for new ones via MutationObserver.
  */
 export function initDesktopBridge(): void {
-  console.log('[APXM] Desktop bridge initializing...');
+  log('Desktop bridge initializing...');
 
   // Listen for incoming messages from shell
   window.addEventListener('message', handleIncomingMessages);

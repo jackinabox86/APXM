@@ -30,7 +30,11 @@ function instrument(ws: WebSocket): void {
 
   const nativeSend = ws.send.bind(ws);
   ws.send = (data: string | ArrayBufferLike | Blob | ArrayBufferView) => {
-    handleData(data, 'outbound');
+    try {
+      handleData(data, 'outbound');
+    } catch {
+      // Never let observation errors drop the outbound frame
+    }
     return nativeSend(data as Parameters<WebSocket['send']>[0]);
   };
 }

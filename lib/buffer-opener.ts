@@ -13,6 +13,7 @@ import {
   findCancelButton,
   waitForElement,
 } from './buffer-refresh/dom-helpers';
+import { log, error } from './debug/logger';
 
 const STEP_TIMEOUT_MS = 2000;
 
@@ -37,7 +38,7 @@ export async function openBuffer(command: string): Promise<boolean> {
   try {
     const addBtn = findAddNewCardButton() ?? findNewBfrButton();
     if (!addBtn) {
-      console.error('[APXM] Could not find new-buffer button');
+      error('Could not find new-buffer button');
       return false;
     }
 
@@ -57,7 +58,7 @@ export async function openBuffer(command: string): Promise<boolean> {
     }, STEP_TIMEOUT_MS);
 
     if (!input) {
-      console.error('[APXM] Command input did not appear');
+      error('Command input did not appear');
       findCancelButton()?.click();
       return false;
     }
@@ -78,10 +79,10 @@ export async function openBuffer(command: string): Promise<boolean> {
       input.dispatchEvent(new KeyboardEvent('keyup', enterProps));
     }
 
-    console.log(`[APXM] Opened buffer: ${command}`);
+    log(`Opened buffer: ${command}`);
     return true;
   } catch (err) {
-    console.error('[APXM] Failed to open buffer:', err);
+    error('Failed to open buffer:', err);
     return false;
   }
 }

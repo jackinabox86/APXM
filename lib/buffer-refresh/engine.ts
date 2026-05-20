@@ -16,6 +16,7 @@ import type { BufferRefreshOptions, BufferRefreshStep } from './types';
 import { useRefreshState } from '../../stores/refreshState';
 import { useSitesStore } from '../../stores/entities';
 import { useSiteSourceStore } from '../../stores/site-data-sources';
+import { warn, error } from '../debug/logger';
 import {
   getContainer,
   isAtStacksTopLevel,
@@ -65,7 +66,7 @@ export function buildBufferCommand(siteId: string): string {
       }
     }
   }
-  console.warn(`[APXM BufferRefresh] Could not resolve planet code for site ${siteId}`);
+  warn(`BufferRefresh: could not resolve planet code for site ${siteId}`);
   return `BS ${siteId}`;
 }
 
@@ -81,7 +82,7 @@ export async function executeBufferRefresh(options: BufferRefreshOptions): Promi
 
   const container = getContainer();
   if (!container) {
-    console.error('[APXM BufferRefresh] #container not found');
+    error('BufferRefresh: #container not found');
     store.updateSiteStatus(siteId, 'error');
     return false;
   }
@@ -158,9 +159,9 @@ export async function executeBufferRefresh(options: BufferRefreshOptions): Promi
     store.updateSiteStatus(siteId, 'success');
     useSiteSourceStore.getState().markSite(siteId, 'websocket');
     return true;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[APXM BufferRefresh]', msg);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    error('BufferRefresh:', msg);
     store.updateSiteStatus(siteId, 'error');
     return false;
   } finally {
