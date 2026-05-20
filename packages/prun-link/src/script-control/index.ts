@@ -48,8 +48,10 @@ function isExtensionUrl(src: string): boolean {
 
 function neutralize(script: HTMLScriptElement): void {
   if (script.dataset[BLOCKED_DATASET_KEY]) return;
+  const rawSrc = script.getAttribute('src');
+  if (!rawSrc) return;
   const src = script.src;
-  if (!src || isExtensionUrl(src)) return;
+  if (isExtensionUrl(src)) return;
 
   script.dataset[BLOCKED_DATASET_KEY] = '1';
   // Save attributes before mutating type so restoration uses the original values.
