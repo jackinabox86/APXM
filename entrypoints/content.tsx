@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from '../components/App';
 import type { ProcessedMessage } from '@prun/link';
 import { initMessageBridge, onMessage } from '@prun/link/message-bus/content-bridge';
+import { installScriptBlocker, restoreBlockedScripts } from '@prun/link/script-control';
 import { useConnectionStore } from '../stores/connection';
 import { useSettingsStore, waitForSettingsHydration } from '../stores/settings';
 import { initMessageHandlers, processMessage } from '../stores/message-handlers';
@@ -34,6 +35,13 @@ export default defineContentScript({
       }
     });
 
+    // Block APEX's scripts immediately so the WebSocket proxy can be installed
+    // before APEX's bundle executes. On desktop with a cached bundle this
+    // races against ws-interceptor.js, which is an async injected script.
+    // Running the blocker here (synchronous, document_start, isolated-world
+    // MutationObserver on the shared DOM) wins that race reliably.
+    installScriptBlocker();
+
     // Desktop detection — on desktop without ?apxm_force, run data pipeline
     // and bridge but skip the mobile UI overlay.
     const isMobile = window.matchMedia('(pointer: coarse)').matches;
@@ -56,6 +64,12 @@ export default defineContentScript({
     //    Always poll — not just in debug mode. Without this wait, the bridge
     //    initializes before the interceptor is ready (race condition on Orion).
     const interceptorReady = await pollForAttribute('prunLinkInterceptor', 'ready', 3000);
+
+    // Always restore blocked scripts — even on failure, APEX must be able to
+    // load. On success the proxies are installed; on failure we at least let
+    // the game run without interception rather than leaving it broken.
+    restoreBlockedScripts();
+
     if (debug) markStep(4, interceptorReady ? 'ok' : 'fail');
     if (!interceptorReady) {
       if (debug) markFailed(4, 'timeout (3s)');
