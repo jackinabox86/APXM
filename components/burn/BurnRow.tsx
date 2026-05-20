@@ -11,18 +11,18 @@ interface BurnRowProps {
 /**
  * Single material burn row showing ticker, days remaining, and optionally need.
  */
-export function BurnRow({ burn, detailed = false }: BurnRowProps) {
+export function BurnRow({ burn, detailed: _detailed = false }: BurnRowProps) {
   const {
     materialTicker,
     dailyAmount,
-    type,
+    type: _type,
     urgency,
     inventoryAmount,
     daysRemaining,
     need,
-    productionInput,
-    productionOutput,
-    workforceConsumption,
+    productionInput: _productionInput,
+    productionOutput: _productionOutput,
+    workforceConsumption: _workforceConsumption,
   } = burn;
 
   const isConsuming = dailyAmount < 0;

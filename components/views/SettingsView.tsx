@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, MaterialTile } from '../shared';
-import { useSettingsStore, DEFAULT_THRESHOLDS, type MaterialTheme } from '../../stores/settings';
+import { useSettingsStore, DEFAULT_THRESHOLDS } from '../../stores/settings';
 import { testConnection, populateStoresFromFio, type FioProgressStep } from '../../lib/fio';
 import { clearAllCache } from '../../stores/cache';
 import { openMobileBuffer, closeMobileBuffer } from '../../lib/mobile-buffer-navigator';
@@ -241,7 +241,7 @@ export function SettingsView() {
             </div>
           </div>
 
-          <p className="text-xs text-apxm-muted">Resupply: target amount of supply for the burn 'Need' column</p>
+          <p className="text-xs text-apxm-muted">Resupply: target amount of supply for the burn &apos;Need&apos; column</p>
 
           {thresholdError && (
             <p className="text-xs text-status-critical">{thresholdError}</p>

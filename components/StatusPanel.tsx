@@ -11,7 +11,7 @@ import {
   useContractsStore,
 } from '../stores/entities';
 import { useSettingsStore } from '../stores/settings';
-import { BurnSummaryList, BurnSummaryCompact } from './burn';
+import { BurnSummaryList } from './burn';
 import { populateStoresFromFio, type PopulateResult } from '../lib/fio';
 
 type View = 'status' | 'burns';

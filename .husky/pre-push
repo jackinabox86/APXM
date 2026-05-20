@@ -1,0 +1,24 @@
+#!/bin/sh
+# Pre-push hook: format changed files with Prettier, then lint with ESLint.
+# Pushes are blocked if ESLint reports any violations.
+
+set -e
+
+# Get the list of staged/changed .ts and .tsx files relative to main
+CHANGED=$(git diff --name-only origin/HEAD...HEAD 2>/dev/null | grep -E '\.(ts|tsx)$' || true)
+
+if [ -z "$CHANGED" ]; then
+  echo "No TypeScript files changed. Skipping lint."
+  exit 0
+fi
+
+echo "Running Prettier on changed files..."
+echo "$CHANGED" | xargs pnpm exec prettier --write --ignore-unknown
+
+# Stage the auto-fixed files so they are included in the push
+echo "$CHANGED" | xargs git add
+
+echo "Running ESLint on changed files..."
+echo "$CHANGED" | xargs pnpm exec eslint
+
+echo "All checks passed."
