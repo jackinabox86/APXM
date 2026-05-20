@@ -36,6 +36,7 @@ import { useSettingsStore } from '../../stores/settings';
 import { useCompanyStore } from '../../stores/company';
 import { useWarehouseStore } from '../../stores/warehouses';
 import { onRprunDetected } from '../rprun-detect';
+import { log } from '../debug/logger';
 
 type PostFn = (message: ApxmInitMessage | ApxmUpdateMessage) => void;
 
@@ -68,7 +69,7 @@ export function subscribeToStores(post: PostFn): () => void {
   // Send full snapshot immediately
   const snapshot = createSnapshot();
   post({ type: 'apxm-init', snapshot });
-  console.log('[APXM Bridge] Sent apxm-init with', {
+  log('Bridge: sent apxm-init with', {
     sites: snapshot.sites.length,
     ships: snapshot.ships.length,
     flights: snapshot.flights.length,
@@ -156,7 +157,7 @@ export function subscribeToStores(post: PostFn): () => void {
         settingsTimer = null;
         const freshSnapshot = createSnapshot();
         post({ type: 'apxm-init', snapshot: freshSnapshot });
-        console.log('[APXM Bridge] Sent apxm-init after settings change');
+        log('Bridge: sent apxm-init after settings change');
       }, DEBOUNCE_MS);
     });
     unsubscribers.push(unsubSettings);
@@ -174,7 +175,7 @@ export function subscribeToStores(post: PostFn): () => void {
         companyTimer = null;
         const freshSnapshot = createSnapshot();
         post({ type: 'apxm-init', snapshot: freshSnapshot });
-        console.log('[APXM Bridge] Sent apxm-init after company data');
+        log('Bridge: sent apxm-init after company data');
       }, DEBOUNCE_MS);
     });
     unsubscribers.push(unsubCompany);
@@ -188,7 +189,7 @@ export function subscribeToStores(post: PostFn): () => void {
     const unsubRprun = onRprunDetected(() => {
       const freshSnapshot = createSnapshot();
       post({ type: 'apxm-init', snapshot: freshSnapshot });
-      console.log('[APXM Bridge] Sent apxm-init after rprun detected');
+      log('Bridge: sent apxm-init after rprun detected');
     });
     unsubscribers.push(unsubRprun);
   }
@@ -202,7 +203,7 @@ export function subscribeToStores(post: PostFn): () => void {
       const reconnectTimer = setTimeout(() => {
         const freshSnapshot = createSnapshot();
         post({ type: 'apxm-init', snapshot: freshSnapshot });
-        console.log('[APXM Bridge] Sent apxm-init after reconnect');
+        log('Bridge: sent apxm-init after reconnect');
       }, 2000);
       timers.push(reconnectTimer);
     }

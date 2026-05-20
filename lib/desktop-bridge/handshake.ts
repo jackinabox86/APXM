@@ -7,6 +7,7 @@
 
 import type { ApxmHelloAckMessage } from '../../types/bridge';
 import { BUILD_VERSION } from '../constants';
+import { log, warn } from '../debug/logger';
 
 const ALLOWED_ORIGINS = ['https://apxm.27bit.dev'];
 if (__DEV__) {
@@ -27,7 +28,7 @@ export function startHandshake(iframe: HTMLIFrameElement): Promise<boolean> {
   return new Promise((resolve) => {
     const contentWindow = iframe.contentWindow;
     if (!contentWindow) {
-      console.warn('[APXM Bridge] iframe has no contentWindow');
+      warn('Bridge: iframe has no contentWindow');
       resolve(false);
       return;
     }
@@ -48,7 +49,7 @@ export function startHandshake(iframe: HTMLIFrameElement): Promise<boolean> {
         settled = true;
         window.removeEventListener('message', onMessage);
         clearTimeout(timer);
-        console.log(`[APXM Bridge] Handshake complete (shell version: ${ack.version})`);
+        log(`Bridge: handshake complete (shell version: ${ack.version})`);
         resolve(true);
       }
     }
@@ -59,7 +60,7 @@ export function startHandshake(iframe: HTMLIFrameElement): Promise<boolean> {
       if (!settled) {
         settled = true;
         window.removeEventListener('message', onMessage);
-        console.warn('[APXM Bridge] Handshake timeout — no ack received within 3s');
+        warn('Bridge: handshake timeout — no ack received within 3s');
         resolve(false);
       }
     }, HANDSHAKE_TIMEOUT_MS);
@@ -69,7 +70,7 @@ export function startHandshake(iframe: HTMLIFrameElement): Promise<boolean> {
     try {
       targetOrigin = new URL(iframe.src).origin;
     } catch {
-      console.warn('[APXM Bridge] Could not parse iframe src:', iframe.src);
+      warn('Bridge: could not parse iframe src:', iframe.src);
       settled = true;
       window.removeEventListener('message', onMessage);
       clearTimeout(timer);
@@ -78,7 +79,7 @@ export function startHandshake(iframe: HTMLIFrameElement): Promise<boolean> {
     }
 
     if (!isAllowedOrigin(targetOrigin)) {
-      console.warn('[APXM Bridge] iframe origin not allowed:', targetOrigin);
+      warn('Bridge: iframe origin not allowed:', targetOrigin);
       settled = true;
       window.removeEventListener('message', onMessage);
       clearTimeout(timer);
