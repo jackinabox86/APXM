@@ -3,6 +3,7 @@ import { App } from '../components/App';
 import type { ProcessedMessage } from '@prun/link';
 import { initMessageBridge, onMessage } from '@prun/link/message-bus/content-bridge';
 import { installScriptBlocker, restoreBlockedScripts } from '@prun/link/script-control';
+import { installFirefoxSyncProxy } from '@prun/link/firefox-sync-proxy';
 import { useConnectionStore } from '../stores/connection';
 import { useSettingsStore, waitForSettingsHydration } from '../stores/settings';
 import { initMessageHandlers, processMessage } from '../stores/message-handlers';
@@ -42,6 +43,11 @@ export default defineContentScript({
     // MutationObserver on the shared DOM) wins that race reliably.
     installScriptBlocker();
 
+    // Firefox: install the synchronous WebSocket proxy via exportFunction +
+    // wrappedJSObject before any page script runs. This eliminates the race
+    // condition that causes intermittent failures on Firefox desktop.
+    const syncProxyInstalled = installFirefoxSyncProxy();
+
     // Desktop detection — on desktop without ?apxm_force, run data pipeline
     // and bridge but skip the mobile UI overlay.
     const isMobile = window.matchMedia('(pointer: coarse)').matches;
@@ -56,30 +62,10 @@ export default defineContentScript({
       markStep(2, 'ok', isMobile ? 'mobile detected' : forceEnabled ? 'forced via ?apxm_force' : 'desktop bridge mode');
     }
 
-    // 1. Inject main-world interceptor (includes script blocker)
-    injectScript('/ws-interceptor.js', { keepInDom: true });
-    if (debug) markStep(3, 'ok');
-
-    // 2. Poll for interceptor readiness via shared DOM attribute
-    //    Always poll — not just in debug mode. Without this wait, the bridge
-    //    initializes before the interceptor is ready (race condition on Orion).
-    const interceptorReady = await pollForAttribute('prunLinkInterceptor', 'ready', 3000);
-
-    // Always restore blocked scripts — even on failure, APEX must be able to
-    // load. On success the proxies are installed; on failure we at least let
-    // the game run without interception rather than leaving it broken.
-    restoreBlockedScripts();
-
-    if (debug) markStep(4, interceptorReady ? 'ok' : 'fail');
-    if (!interceptorReady) {
-      if (debug) markFailed(4, 'timeout (3s)');
-      warn('Interceptor failed to initialize within 3s — aborting');
-      return;
-    }
-
-    // 3. Init message bridge (handler registry)
+    // 3. Init message bridge — must be ready before the first WebSocket frame
+    //    arrives (the Firefox sync proxy can deliver messages before ws-interceptor.js
+    //    even loads).
     initMessageBridge();
-    if (debug) markStep(5, 'ok');
 
     // 4. Build message handler map (local to APXM, not registered on bridge)
     initMessageHandlers();
@@ -148,6 +134,34 @@ export default defineContentScript({
         }, 0);
       }
     });
+
+    // 1. Inject main-world interceptor (XHR proxy + WebSocket proxy on non-Firefox)
+    injectScript('/ws-interceptor.js', { keepInDom: true });
+    if (debug) markStep(3, 'ok');
+
+    // 2. Poll for interceptor readiness via shared DOM attribute
+    //    Always poll — not just in debug mode. Without this wait, the bridge
+    //    initializes before the interceptor is ready (race condition on Orion).
+    const interceptorReady = await pollForAttribute('prunLinkInterceptor', 'ready', 3000);
+
+    // Always restore blocked scripts — even on failure, APEX must be able to
+    // load. On success the proxies are installed; on failure we at least let
+    // the game run without interception rather than leaving it broken.
+    restoreBlockedScripts();
+
+    if (debug) markStep(4, interceptorReady ? 'ok' : 'fail');
+    if (!interceptorReady && !syncProxyInstalled) {
+      // Only abort if neither interceptor succeeded — on Firefox with the sync
+      // proxy installed, ws-interceptor.js timeout is non-fatal (WebSocket frames
+      // are already captured; only XHR polling fallback would be missed).
+      if (debug) markFailed(4, 'timeout (3s)');
+      warn('Interceptor failed to initialize within 3s — aborting');
+      return;
+    }
+    if (!interceptorReady && syncProxyInstalled) {
+      if (debug) markStep(4, 'ok', 'Firefox sync proxy active');
+      warn('ws-interceptor.js timed out — continuing with Firefox sync proxy (XHR fallback unavailable)');
+    }
 
     // 5b. Detect unresponsive APEX — if no messages arrive within 5s, flag it
     const APEX_TIMEOUT_MS = 5000;

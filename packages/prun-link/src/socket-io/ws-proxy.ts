@@ -68,6 +68,13 @@ function instrument(ws: WebSocket): void {
  * APEX to fall back to XHR long-polling (which then times out).
  */
 export function installWebSocketProxy(): void {
+  // Firefox sync proxy (content-script world) already replaced window.WebSocket
+  // before this main-world script ran — no need to double-wrap.
+  if ((window as unknown as Record<string, unknown>).__apxmWsProxied) {
+    if (isDebug()) console.log('[APXM:ws-proxy] Firefox sync proxy already installed, skipping');
+    return;
+  }
+
   const NativeWebSocket = window.WebSocket;
   if ((NativeWebSocket as unknown as Record<symbol, unknown>)[PROXIED]) {
     if (isDebug()) console.log('[APXM:ws-proxy] already installed, skipping');
