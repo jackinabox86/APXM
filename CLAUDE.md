@@ -69,6 +69,16 @@ This prevents React from hitting 50 nested updates. Without this, login would cr
 - **ws-interceptor.ts** — Main-world script injected by content.tsx. Intercepts WebSocket constructor, hooks into Socket.IO's message flow, dispatches to @prun/link decoder.
 - **background.ts** — Minimal service worker for extension lifecycle (MV3).
 
+### `@prun/link` Package (`packages/prun-link/`)
+
+In-repo pnpm workspace package (`"@prun/link": "workspace:*"`) providing WebSocket interception and game-message decoding. Consumed via subpath exports; no build step — WXT/Vite compiles its `.ts` source directly.
+
+- **`socket-io/`** — `installWebSocketProxy()` / `installXHRProxy()` observe APEX traffic without modifying it; `setMessageCallback()` registers the sink. Decodes engine.io v4 frames → Socket.IO v4 EVENT packets → `ProcessedMessage`.
+- **`script-control/`** — `installScriptBlocker()` / `restoreBlockedScripts()` hold back APEX's scripts until the proxies are installed.
+- **`message-bus/`** — `emitMessage()` (main-world) and `initMessageBridge()` + `onMessage()` (content-bridge) bridge messages across the world boundary via `window.postMessage`.
+
+APEX wraps every game message in a Socket.IO event literally named `"event"`; the real `messageType` lives inside `args[0]` as `{ messageType, payload }`. That double-wrapped object becomes `ProcessedMessage.payload`, which `extractPayload()` (`stores/message-handlers.ts`) unwraps one level.
+
 ### Zustand Stores (`stores/`)
 
 **Entity stores** (shadow batching during message bursts):
@@ -257,7 +267,7 @@ See [Mobile APEX & APXM Integration Docs](https://github.com/jackinabox86/refine
 
 ## Dependencies
 
-- **@prun/link** — Shared WebSocket interception library (git SSH)
+- **@prun/link** — In-repo workspace package (`packages/prun-link/`) for WebSocket interception + Socket.IO/engine.io decoding
 - **React 19** + TypeScript
 - **Zustand** — Minimal state management
 - **Tailwind CSS** — Utility styling
