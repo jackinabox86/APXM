@@ -49,8 +49,11 @@ export function installWebSocketProxy(): void {
   if ((NativeWebSocket as unknown as Record<symbol, unknown>)[PROXIED]) return;
 
   const ProxiedWebSocket = new Proxy(NativeWebSocket, {
-    construct(target, args, newTarget) {
-      const ws = Reflect.construct(target, args, newTarget) as WebSocket;
+    construct(target, args) {
+      // Pass target (NativeWebSocket) as new.target, not the Proxy.
+      // Firefox rejects native constructors whose new.target is a Proxy
+      // rather than the native class or a proper ES6 subclass.
+      const ws = Reflect.construct(target, args) as WebSocket;
       instrument(ws);
       return ws;
     },
