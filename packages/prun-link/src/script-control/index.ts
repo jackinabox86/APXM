@@ -38,6 +38,10 @@ let beforeScriptHandler: ((e: Event) => void) | null = null;
 let active = false;
 const blocked: BlockedScript[] = [];
 
+function isDebug(): boolean {
+  return __DEV__ || location.search.includes('apxm_debug');
+}
+
 function isExtensionUrl(src: string): boolean {
   return (
     src.startsWith('chrome-extension://') ||
@@ -46,12 +50,18 @@ function isExtensionUrl(src: string): boolean {
   );
 }
 
+let _lastMechanism: 'observer' | 'beforescriptexecute' = 'observer';
+
 function neutralize(script: HTMLScriptElement): void {
   if (script.dataset[BLOCKED_DATASET_KEY]) return;
   const rawSrc = script.getAttribute('src');
   if (!rawSrc) return;
   const src = script.src;
   if (isExtensionUrl(src)) return;
+
+  if (isDebug()) {
+    console.log(`[APXM:blocker] blocked via ${_lastMechanism}: ${rawSrc} @${performance.now().toFixed(1)}ms`);
+  }
 
   script.dataset[BLOCKED_DATASET_KEY] = '1';
   // Save attributes before mutating type so restoration uses the original values.
@@ -71,21 +81,30 @@ export function installScriptBlocker(): void {
   if (active) return;
   active = true;
 
+  if (isDebug()) console.log(`[APXM:blocker] installed @${performance.now().toFixed(1)}ms`);
+
   // Firefox: beforescriptexecute fires synchronously just before execution.
   if ('onbeforescriptexecute' in document) {
+    if (isDebug()) console.log('[APXM:blocker] beforescriptexecute available');
     beforeScriptHandler = (e: Event) => {
       if (!active) return;
+      _lastMechanism = 'beforescriptexecute';
       e.preventDefault();
       neutralize(e.target as HTMLScriptElement);
     };
     document.addEventListener('beforescriptexecute', beforeScriptHandler, true);
+  } else if (isDebug()) {
+    console.warn('[APXM:blocker] beforescriptexecute NOT available — MutationObserver only');
   }
 
   observer = new MutationObserver((records) => {
     if (!active) return;
     for (const record of records) {
       record.addedNodes.forEach((node) => {
-        if (node instanceof HTMLScriptElement) neutralize(node);
+        if (node instanceof HTMLScriptElement) {
+          _lastMechanism = 'observer';
+          neutralize(node);
+        }
       });
     }
   });
@@ -100,6 +119,14 @@ export function restoreBlockedScripts(): void {
   if (beforeScriptHandler) {
     document.removeEventListener('beforescriptexecute', beforeScriptHandler, true);
     beforeScriptHandler = null;
+  }
+
+  if (isDebug()) {
+    if (blocked.length === 0) {
+      console.warn('[APXM:blocker] restoring 0 scripts — blocker caught nothing; APEX may have run before proxy was installed');
+    } else {
+      console.log(`[APXM:blocker] restoring ${blocked.length} script(s) @${performance.now().toFixed(1)}ms`);
+    }
   }
 
   for (const entry of blocked) {

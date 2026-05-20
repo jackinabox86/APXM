@@ -24,7 +24,8 @@ function handleMessage(message: ProcessedMessage): void {
 }
 
 export default defineUnlistedScript(() => {
-  log('Installing interceptor...');
+  const t0 = performance.now();
+  log(`Installing interceptor @${t0.toFixed(1)}ms`);
 
   // 1. Set up message callback
   setMessageCallback(handleMessage);
@@ -38,5 +39,5 @@ export default defineUnlistedScript(() => {
   // Signal readiness to content script via shared DOM attribute
   document.documentElement.dataset.prunLinkInterceptor = 'ready';
 
-  log('Interceptor ready');
+  log(`Interceptor ready @${performance.now().toFixed(1)}ms (+${(performance.now() - t0).toFixed(1)}ms)`);
 });

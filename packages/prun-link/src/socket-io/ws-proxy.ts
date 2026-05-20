@@ -3,6 +3,10 @@ import { decodeFrame } from './pipeline';
 
 const PROXIED = Symbol.for('prun-link.wsProxied');
 
+function isDebug(): boolean {
+  return __DEV__ || location.search.includes('apxm_debug');
+}
+
 function dispatch(text: string, rawSize: number, direction: 'inbound' | 'outbound'): void {
   for (const msg of decodeFrame(text, direction, rawSize)) {
     emitProcessed(msg);
@@ -24,12 +28,20 @@ function handleData(data: unknown, direction: 'inbound' | 'outbound'): void {
 }
 
 function instrument(ws: WebSocket): void {
+  if (isDebug()) {
+    console.log(`[APXM:ws-proxy] instrument: ${ws.url} @${performance.now().toFixed(1)}ms`);
+  }
+
   ws.addEventListener('message', (event) => {
     handleData((event as MessageEvent).data, 'inbound');
   });
 
   const nativeSend = ws.send.bind(ws);
-  ws.send = (data: string | ArrayBufferLike | Blob | ArrayBufferView) => {
+  const sendOverride = (data: string | ArrayBufferLike | Blob | ArrayBufferView) => {
+    if (isDebug()) {
+      const preview = typeof data === 'string' ? data.slice(0, 12) : `[binary ${(data as ArrayBuffer).byteLength ?? '?'}b]`;
+      console.log(`[APXM:ws-proxy] → send: ${JSON.stringify(preview)}`);
+    }
     try {
       handleData(data, 'outbound');
     } catch {
@@ -37,6 +49,11 @@ function instrument(ws: WebSocket): void {
     }
     return nativeSend(data as Parameters<WebSocket['send']>[0]);
   };
+  ws.send = sendOverride;
+
+  if (isDebug() && ws.send !== sendOverride) {
+    console.warn('[APXM:ws-proxy] send override silently failed — pong frames will not be logged but native send still runs');
+  }
 }
 
 /**
@@ -52,7 +69,12 @@ function instrument(ws: WebSocket): void {
  */
 export function installWebSocketProxy(): void {
   const NativeWebSocket = window.WebSocket;
-  if ((NativeWebSocket as unknown as Record<symbol, unknown>)[PROXIED]) return;
+  if ((NativeWebSocket as unknown as Record<symbol, unknown>)[PROXIED]) {
+    if (isDebug()) console.log('[APXM:ws-proxy] already installed, skipping');
+    return;
+  }
+
+  if (isDebug()) console.log(`[APXM:ws-proxy] installing proxy @${performance.now().toFixed(1)}ms`);
 
   function WebSocketProxy(
     this: unknown,
