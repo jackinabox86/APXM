@@ -75,7 +75,7 @@ const browserStorage: StateStorage = {
     if (!isBrowserStorageAvailable()) return null;
     try {
       const result = await browser.storage.local.get(name);
-      return result[name] ?? null;
+      return (result[name] as string | undefined) ?? null;
     } catch (error) {
       if (isContextInvalidated(error)) return null;
       throw error;

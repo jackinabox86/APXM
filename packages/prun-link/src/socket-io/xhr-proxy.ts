@@ -30,7 +30,7 @@ export function installXHRProxy(): void {
   proto.open = function (this: TaggedXHR, ...args: Parameters<XMLHttpRequest['open']>) {
     this[URL_KEY] = String(args[1] ?? '');
     return nativeOpen.apply(this, args);
-  };
+  } as typeof proto.open;
 
   proto.send = function (this: TaggedXHR, body?: Document | XMLHttpRequestBodyInit | null) {
     const url = this[URL_KEY] ?? '';

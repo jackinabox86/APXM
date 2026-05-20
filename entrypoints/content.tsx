@@ -183,7 +183,6 @@ export default defineContentScript({
 
     if (isDesktopBridgeMode) {
       initApxmButton();
-      console.log('[APXM] Desktop mode — bridge active, APXM button injected, mobile UI skipped.');
       return;
     }
 
