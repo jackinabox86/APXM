@@ -146,23 +146,35 @@ export function markFailed(step: number, error: string): void {
 /**
  * Poll for a dataset attribute on documentElement.
  * Resolves true if the attribute matches within the timeout, false otherwise.
+ *
+ * Uses MutationObserver rather than requestAnimationFrame so it works in
+ * background tabs (where rAF is throttled to ~1fps or suspended entirely)
+ * and on mobile browsers that defer animation frames until first paint.
  */
 export function pollForAttribute(attr: string, value: string, timeoutMs: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const deadline = performance.now() + timeoutMs;
-
-    function check(): void {
-      if (document.documentElement.dataset[attr] === value) {
-        resolve(true);
-        return;
-      }
-      if (performance.now() >= deadline) {
-        resolve(false);
-        return;
-      }
-      requestAnimationFrame(check);
+    if (document.documentElement.dataset[attr] === value) {
+      resolve(true);
+      return;
     }
 
-    requestAnimationFrame(check);
+    let done = false;
+
+    const finish = (result: boolean) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timerId);
+      observer.disconnect();
+      resolve(result);
+    };
+
+    const observer = new MutationObserver(() => {
+      if (document.documentElement.dataset[attr] === value) {
+        finish(true);
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true });
+
+    const timerId = setTimeout(() => finish(false), timeoutMs);
   });
 }

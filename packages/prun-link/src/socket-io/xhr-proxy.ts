@@ -35,16 +35,24 @@ export function installXHRProxy(): void {
   proto.send = function (this: TaggedXHR, body?: Document | XMLHttpRequestBodyInit | null) {
     const url = this[URL_KEY] ?? '';
     if (url.includes('/socket.io/')) {
-      if (typeof body === 'string') {
-        dispatch(body, 'outbound');
-      }
-      this.addEventListener('load', () => {
-        if (this.responseType === '' || this.responseType === 'text') {
-          if (typeof this.responseText === 'string' && this.responseText.length > 0) {
-            dispatch(this.responseText, 'inbound');
-          }
+      try {
+        if (typeof body === 'string') {
+          dispatch(body, 'outbound');
         }
-      });
+        this.addEventListener('load', () => {
+          try {
+            if (this.responseType === '' || this.responseType === 'text') {
+              if (typeof this.responseText === 'string' && this.responseText.length > 0) {
+                dispatch(this.responseText, 'inbound');
+              }
+            }
+          } catch {
+            // observation errors must not prevent socket.io from processing responses
+          }
+        });
+      } catch {
+        // observation errors must never prevent the send
+      }
     }
     return nativeSend.call(this, body);
   };

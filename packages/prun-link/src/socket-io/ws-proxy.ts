@@ -43,19 +43,38 @@ function instrument(ws: WebSocket): void {
  * Replace `window.WebSocket` with a proxy that observes every connection's
  * inbound messages and outbound sends. The underlying native socket is
  * returned unchanged, so APEX behaviour is not modified.
+ *
+ * Uses a plain constructor function rather than `new Proxy(WebSocket, …)` +
+ * `Reflect.construct` because Firefox rejects native constructors whose
+ * `new.target` is a Proxy instead of the native class or a proper ES6
+ * subclass, causing every `new WebSocket(url)` call to throw and forcing
+ * APEX to fall back to XHR long-polling (which then times out).
  */
 export function installWebSocketProxy(): void {
   const NativeWebSocket = window.WebSocket;
   if ((NativeWebSocket as unknown as Record<symbol, unknown>)[PROXIED]) return;
 
-  const ProxiedWebSocket = new Proxy(NativeWebSocket, {
-    construct(target, args, newTarget) {
-      const ws = Reflect.construct(target, args, newTarget) as WebSocket;
-      instrument(ws);
-      return ws;
-    },
-  });
-  (ProxiedWebSocket as unknown as Record<symbol, unknown>)[PROXIED] = true;
+  function WebSocketProxy(
+    this: unknown,
+    ...args: ConstructorParameters<typeof WebSocket>
+  ): WebSocket {
+    const ws = new NativeWebSocket(...args);
+    instrument(ws);
+    return ws;
+  }
 
-  window.WebSocket = ProxiedWebSocket;
+  // Mirror prototype and static constants so instanceof / WebSocket.OPEN etc.
+  // continue to work for any caller that checks them.
+  WebSocketProxy.prototype = NativeWebSocket.prototype;
+  (WebSocketProxy as unknown as typeof WebSocket).CONNECTING = NativeWebSocket.CONNECTING;
+  (WebSocketProxy as unknown as typeof WebSocket).OPEN = NativeWebSocket.OPEN;
+  (WebSocketProxy as unknown as typeof WebSocket).CLOSING = NativeWebSocket.CLOSING;
+  (WebSocketProxy as unknown as typeof WebSocket).CLOSED = NativeWebSocket.CLOSED;
+
+  // Mark both the native constructor and the wrapper so the idempotency guard
+  // fires correctly whether window.WebSocket is the native or the wrapper.
+  (NativeWebSocket as unknown as Record<symbol, unknown>)[PROXIED] = true;
+  (WebSocketProxy as unknown as Record<symbol, unknown>)[PROXIED] = true;
+
+  window.WebSocket = WebSocketProxy as unknown as typeof WebSocket;
 }
