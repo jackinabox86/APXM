@@ -1,17 +1,17 @@
 // Ported from refined-prun src/features/XIT/ACT/runner/step-machine.ts.
-// Promises only. TileAllocator is now a plug-in interface (../tile-allocator).
+// Promises only. TileAllocator is replaced by the mobile buffer navigator:
+// requestBuffer() opens an APEX buffer via openMobileBuffer() and hands the
+// action step an anchor (#container) to scope its DOM queries against.
 
 import { act } from '../act-registry';
 import { ActionStep } from '../shared-types';
 import { Logger } from './logger';
-import { TileAllocator } from './tile-allocator';
 import { clickElement, sleep } from '../_compat';
 import type { PrunTile } from '../runtime-types';
+import { openMobileBuffer, closeMobileBuffer } from '../../mobile-buffer-navigator';
 
 interface StepMachineOptions {
-  tile: PrunTile;
   log: Logger;
-  tileAllocator: TileAllocator;
   onBufferSplit: () => void;
   onStart: () => void;
   onEnd: () => void;
@@ -77,6 +77,8 @@ export class StepMachine {
   stop() {
     this.next = undefined;
     this.nextAct = undefined;
+    // Close any open buffer and restore APEX before signalling the end.
+    void closeMobileBuffer();
     this.options.onEnd();
   }
 
@@ -136,7 +138,7 @@ export class StepMachine {
             throw AssertionError;
           }
         },
-        requestTile: async command => await this.requestTile(command),
+        requestTile: async command => await this.requestBuffer(command),
       });
     } catch (e) {
       if (e !== AssertionError) {
@@ -146,19 +148,17 @@ export class StepMachine {
     }
   }
 
-  private async requestTile(command: string): Promise<PrunTile | undefined> {
-    let tile: PrunTile | undefined = tiles.find(command, true)[0];
-    if (tile !== undefined) {
-      return tile;
-    }
+  private async requestBuffer(command: string): Promise<PrunTile | undefined> {
     await this.waitAct(`Open ${command}`);
     this.options.onStatusChanged(`Opening ${command}...`);
-    tile = await this.options.tileAllocator.requestTile(command);
-    if (tile === undefined) {
+    const opened = await openMobileBuffer(command);
+    const anchor = document.getElementById('container');
+    if (!opened || !anchor) {
       this.log.error(`Failed to open ${command}`);
       this.stop();
+      return undefined;
     }
-    return tile;
+    return { anchor };
   }
 
   private async waitAct(status: string) {
@@ -176,7 +176,7 @@ export class StepMachine {
 }
 
 async function waitActionFeedback(tile: PrunTile): Promise<string | undefined> {
-  const overlay = await $(tile.frame, C.ActionFeedback.overlay);
+  const overlay = await $(tile.anchor, C.ActionFeedback.overlay);
   await waitActionProgress(overlay);
   if (overlay.classList.contains(C.ActionConfirmationOverlay.container)) {
     const confirm = _$$(overlay, C.Button.btn)[1];

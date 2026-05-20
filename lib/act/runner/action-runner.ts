@@ -1,8 +1,7 @@
 // Ported from refined-prun src/features/XIT/ACT/runner/action-runner.ts.
-// TileAllocator instantiation removed (mobile APXM has no tile concept yet);
-// callers must supply a `requestBuffer(command)` stub instead, which Stage 1
-// returns `false` from by default and later stages will wire to the
-// buffer-refresh engine.
+// refined-prun's desktop TileAllocator is replaced by the mobile buffer
+// navigator: the step machine opens each buffer through openMobileBuffer()
+// directly, so the runner no longer threads a tile allocator or stub.
 
 import { act } from '../act-registry';
 import { deepToRaw, fixed02, materialsStore } from '../_compat';
@@ -10,39 +9,21 @@ import { Logger, type LogPart } from './logger';
 import { StepMachine } from './step-machine';
 import { StepGenerator } from './step-generator';
 import { ActionPackageConfig, ActionStep } from '../shared-types';
-import type { TileAllocator } from './tile-allocator';
-import type { PrunTile } from '../runtime-types';
 
 interface ActionRunnerOptions {
-  tile: PrunTile;
   log: Logger;
   onBufferSplit: () => void;
   onStart: () => void;
   onEnd: () => void;
   onStatusChanged: (status: string, keepReady?: boolean) => void;
   onActReady: () => void;
-  // Stage 1 stub: caller supplies a way to open a buffer for a given command.
-  // Returns true if the buffer was opened (and a corresponding tile became
-  // available), false otherwise. Will be wired into APXM's Stack-based
-  // buffer-refresh engine in a later stage.
-  requestBuffer: (command: string) => Promise<boolean>;
 }
 
 export class ActionRunner {
-  private readonly tileAllocator: TileAllocator;
   private readonly stepGenerator: StepGenerator;
   private stepMachine?: StepMachine;
 
   constructor(private options: ActionRunnerOptions) {
-    // Stage 1: synthesize a minimal TileAllocator that delegates to the
-    // caller-supplied requestBuffer stub. Returns the current tile (or
-    // undefined) — Stage 1 does not yet model multi-tile execution.
-    this.tileAllocator = {
-      requestTile: async (command: string) => {
-        const ok = await options.requestBuffer(command);
-        return ok ? options.tile : undefined;
-      },
-    };
     this.stepGenerator = new StepGenerator(options);
   }
 
@@ -89,10 +70,7 @@ export class ActionRunner {
     }
     this.log.info('Action Package execution started');
     this.log.info(formatTotals(steps));
-    this.stepMachine = new StepMachine(steps, {
-      ...this.options,
-      tileAllocator: this.tileAllocator,
-    });
+    this.stepMachine = new StepMachine(steps, this.options);
     this.stepMachine.start();
   }
 

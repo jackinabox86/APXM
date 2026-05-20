@@ -3,6 +3,7 @@ import { Card, MaterialTile } from '../shared';
 import { useSettingsStore, DEFAULT_THRESHOLDS, type MaterialTheme } from '../../stores/settings';
 import { testConnection, populateStoresFromFio, type FioProgressStep } from '../../lib/fio';
 import { clearAllCache } from '../../stores/cache';
+import { openMobileBuffer, closeMobileBuffer } from '../../lib/mobile-buffer-navigator';
 
 type ConnectionStatus = 'untested' | 'testing' | 'valid' | 'invalid';
 
@@ -98,6 +99,11 @@ export function SettingsView() {
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [isClearing, setIsClearing] = useState(false);
 
+  // Debug — temporary Stage 2 buffer navigator test scaffold.
+  const [debugCommand, setDebugCommand] = useState('MTRA');
+  const [debugStatus, setDebugStatus] = useState<string | null>(null);
+  const [debugBusy, setDebugBusy] = useState(false);
+
   // Initialize form from stored config
   useEffect(() => {
     setUsername(fio.username ?? '');
@@ -169,6 +175,27 @@ export function SettingsView() {
     setIsClearing(true);
     await clearAllCache();
     setIsClearing(false);
+  };
+
+  const handleDebugOpen = async () => {
+    const command = debugCommand.trim();
+    setDebugBusy(true);
+    setDebugStatus(`Opening "${command}"...`);
+    const ok = await openMobileBuffer(command);
+    setDebugStatus(
+      ok
+        ? `Opened "${command}" — APEX is hidden off-screen. Return to APEX to confirm, then press Close.`
+        : `Failed to open "${command}" — see console. Page was restored.`
+    );
+    setDebugBusy(false);
+  };
+
+  const handleDebugClose = async () => {
+    setDebugBusy(true);
+    setDebugStatus('Closing buffer...');
+    await closeMobileBuffer();
+    setDebugStatus('Closed — APEX restored to the Stacks top level.');
+    setDebugBusy(false);
   };
 
   const hasUnsavedChanges =
@@ -381,6 +408,47 @@ export function SettingsView() {
             <MaterialTile ticker="MCG" category="construction-materials" size="sm" />
             <MaterialTile ticker="SAR" category="electronic-devices" size="sm" />
           </div>
+        </div>
+      </Card>
+
+      {/* Debug — temporary Stage 2 buffer navigator test, remove before shipping */}
+      <Card>
+        <h2 className="text-prun-yellow text-sm font-semibold mb-1">Debug</h2>
+        <p className="text-xs text-apxm-muted mb-3">
+          Mobile buffer navigator test. Use a form-bearing command (e.g. MTRA) — a
+          display-only buffer has no form and the open will time out.
+        </p>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-apxm-muted text-xs mb-1">Buffer command</label>
+            <input
+              type="text"
+              value={debugCommand}
+              onChange={(e) => setDebugCommand(e.target.value)}
+              placeholder="MTRA"
+              className="w-full min-h-touch px-3 py-2 text-sm bg-apxm-bg border border-apxm-accent rounded text-apxm-text placeholder:text-apxm-muted/50 outline-none focus:border-prun-yellow font-mono"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleDebugOpen}
+              disabled={debugBusy || debugCommand.trim() === ''}
+              className="flex-1 min-h-touch px-4 py-2 text-sm rounded border border-prun-yellow text-prun-yellow font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Open Buffer
+            </button>
+            <button
+              onClick={handleDebugClose}
+              disabled={debugBusy}
+              className="flex-1 min-h-touch px-4 py-2 text-sm rounded border border-apxm-accent text-apxm-muted font-semibold hover:border-prun-yellow hover:text-prun-yellow disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Close Buffer
+            </button>
+          </div>
+
+          {debugStatus && <p className="text-xs text-apxm-text">{debugStatus}</p>}
         </div>
       </Card>
     </div>
