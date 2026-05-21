@@ -39,28 +39,33 @@ var _CH='${RAW_FRAME_CHANNEL}';
 function _sz(d){return typeof d==='string'?d.length:(d&&d.byteLength||0);}
 function _preview(d){return typeof d==='string'?JSON.stringify(d.slice(0,16)):'[binary '+_sz(d)+'b]';}
 var _sn=0,_rn=0;
+
+// Intercept at the PROTOTYPE level so that refined-prun's Proxy cannot bypass
+// it by returning WebSocket.prototype.send.bind(ws). Any call path that
+// ultimately reaches WebSocket.prototype.send will go through this wrapper,
+// including calls made by external extensions through their own Proxy traps.
+var _origProtoSend=_NWS.prototype.send;
+_NWS.prototype.send=function(data){
+_sn++;
+if(_sn<=30)console.log('[APXM:proxy] send#'+_sn+' '+_preview(data));
+var r;
+try{r=_origProtoSend.apply(this,arguments);}
+catch(e){console.error('[APXM:proxy] send#'+_sn+' FAILED:',e);return;}
+try{window.postMessage({ch:_CH,d:data,dir:'o',sz:_sz(data)},'*');}
+catch(pmErr){console.error('[APXM:proxy] send postMessage failed:',pmErr);}
+return r;
+};
+
 function _inst(ws){
 console.log('[APXM:proxy] WS created url='+ws.url+' @'+performance.now().toFixed(1)+'ms');
 ws.addEventListener('message',function(e){
 _rn++;
 if(_rn<=10)console.log('[APXM:proxy] recv#'+_rn+' '+_preview(e.data));
-try{
-window.postMessage({ch:_CH,d:e.data,dir:'i',sz:_sz(e.data)},'*');
-}catch(pmErr){console.error('[APXM:proxy] recv postMessage failed:',pmErr);}
+try{window.postMessage({ch:_CH,d:e.data,dir:'i',sz:_sz(e.data)},'*');}
+catch(pmErr){console.error('[APXM:proxy] recv postMessage failed:',pmErr);}
 });
-var _ns=ws.send.bind(ws);
-ws.send=function(data){
-_sn++;
-if(_sn<=30)console.log('[APXM:proxy] send#'+_sn+' '+_preview(data));
-var r;
-try{r=_ns(data);}
-catch(sendErr){console.error('[APXM:proxy] native send#'+_sn+' FAILED:',sendErr);return;}
-try{
-window.postMessage({ch:_CH,d:data,dir:'o',sz:_sz(data)},'*');
-}catch(pmErr){console.error('[APXM:proxy] send postMessage failed:',pmErr);}
-return r;
-};
 }
+
 function WebSocketProxy(){
 var ws=new _NWS(...arguments);
 _inst(ws);
