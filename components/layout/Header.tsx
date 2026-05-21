@@ -3,7 +3,7 @@ import { useGameState } from '../../stores/gameState';
 import { useConnectionStatus } from '../../hooks/useConnectionStatus';
 import { StatusDot } from '../shared';
 import { useSitesStore } from '../../stores/entities';
-import { useSiteSourceStore } from '../../stores/site-data-sources';
+import { useRefreshState } from '../../stores/refreshState';
 import { executeBufferRefresh, buildBufferCommand } from '../../lib/buffer-refresh';
 
 export function Header() {
@@ -12,18 +12,22 @@ export function Header() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const siteEntities = useSitesStore((s) => s.entities);
-  const sourceEntries = useSiteSourceStore((s) => s.entries);
+  // Only sites explicitly refreshed via the BS buffer this session count.
+  // useSiteSourceStore is intentionally avoided here: the initial WebSocket
+  // login dump marks all sites as 'websocket', which would falsely show
+  // everything as up-to-date before the user has done anything.
+  const siteStatus = useRefreshState((s) => s.siteStatus);
 
   const totalCount = siteEntities.size;
   const refreshedCount = Array.from(siteEntities.keys()).filter(
-    (id) => sourceEntries.get(id)?.source === 'websocket'
+    (id) => siteStatus.get(id) === 'success'
   ).length;
 
   const allRefreshed = refreshedCount === totalCount;
   const counterColor = allRefreshed ? 'text-green-400' : 'text-red-400';
 
   const nextSiteId = Array.from(siteEntities.keys()).find(
-    (id) => sourceEntries.get(id)?.source !== 'websocket'
+    (id) => siteStatus.get(id) !== 'success'
   );
 
   async function handleRefresh(): Promise<void> {
