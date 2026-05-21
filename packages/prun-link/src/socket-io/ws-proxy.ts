@@ -68,10 +68,10 @@ function instrument(ws: WebSocket): void {
  * APEX to fall back to XHR long-polling (which then times out).
  */
 export function installWebSocketProxy(): void {
-  // Firefox sync proxy (content-script world) already replaced window.WebSocket
-  // before this main-world script ran — no need to double-wrap.
+  // The inline proxy (content-script world) already replaced window.WebSocket
+  // synchronously before this main-world script ran — no need to double-wrap.
   if ((window as unknown as Record<string, unknown>).__apxmWsProxied) {
-    if (isDebug()) console.log('[APXM:ws-proxy] Firefox sync proxy already installed, skipping');
+    console.log('[APXM:ws-proxy] inline proxy active — skipping WS wrap, installing XHR proxy only');
     return;
   }
 

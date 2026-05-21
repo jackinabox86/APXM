@@ -34,15 +34,18 @@ function buildInlineScript(): string {
 if(window.__apxmWsProxied)return;
 var _NWS=window.WebSocket;
 var _CH='${RAW_FRAME_CHANNEL}';
+var _dbg=location.search.includes('apxm_debug');
 function _sz(d){return typeof d==='string'?d.length:(d&&d.byteLength||0);}
 function _inst(ws){
+if(_dbg)console.log('[APXM:proxy] new WebSocket url='+ws.url+' @'+performance.now().toFixed(1)+'ms');
 ws.addEventListener('message',function(e){
 try{window.postMessage({ch:_CH,d:e.data,dir:'i',sz:_sz(e.data)},'*')}catch(_){}
 });
 var _ns=ws.send.bind(ws);
 ws.send=function(data){
+var r=_ns(data);
 try{window.postMessage({ch:_CH,d:data,dir:'o',sz:_sz(data)},'*')}catch(_){}
-return _ns(data);
+return r;
 };
 }
 function WebSocketProxy(){
@@ -57,6 +60,7 @@ WebSocketProxy.CLOSING=_NWS.CLOSING;
 WebSocketProxy.CLOSED=_NWS.CLOSED;
 window.__apxmWsProxied=true;
 window.WebSocket=WebSocketProxy;
+console.log('[APXM:proxy] main-world installed @'+performance.now().toFixed(1)+'ms');
 })();`;
 }
 
@@ -86,12 +90,11 @@ export function installInlineProxy(): boolean {
 
     const installed = !!(window as Record<string, unknown>)[INSTALLED_FLAG];
 
-    if (isDebug()) {
-      if (installed) {
-        console.log(`[APXM:inline-proxy] installed @${performance.now().toFixed(1)}ms`);
-      } else {
-        console.warn('[APXM:inline-proxy] failed to install (CSP blocked inline script?)');
-      }
+    // Always log — this is the first thing to check when debugging load issues.
+    if (installed) {
+      if (isDebug()) console.log(`[APXM:proxy] content-script confirmed inline install @${performance.now().toFixed(1)}ms`);
+    } else {
+      console.warn('[APXM:proxy] inline proxy FAILED — inline scripts may be blocked by CSP; falling back to ws-interceptor.js');
     }
 
     return installed;

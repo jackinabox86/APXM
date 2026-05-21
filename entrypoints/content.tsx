@@ -50,6 +50,7 @@ export default defineContentScript({
     // refined-prun that wrap window.WebSocket with Proxy + Reflect.construct.
     // Works on all platforms (Chrome, Firefox, Orion).
     const inlineProxyInstalled = installInlineProxy();
+    console.log(`[APXM:content] inline proxy: ${inlineProxyInstalled ? 'installed' : 'FAILED — will rely on ws-interceptor.js'}`);
 
     // Desktop detection — on desktop without ?apxm_force, run data pipeline
     // and bridge but skip the mobile UI overlay.
@@ -61,7 +62,7 @@ export default defineContentScript({
 
     if (debug) {
       createOverlay();
-      markStep(1, 'ok');
+      markStep(1, 'ok', inlineProxyInstalled ? 'inline proxy ok' : 'inline proxy FAILED');
       markStep(2, 'ok', isMobile ? 'mobile detected' : forceEnabled ? 'forced via ?apxm_force' : 'desktop bridge mode');
     }
 
@@ -75,10 +76,15 @@ export default defineContentScript({
     // WebSocket frame data here so the content-script world decodes it.
     // ws-interceptor.js (which handles XHR polling) still uses the existing
     // postMessage → initMessageBridge path for its messages.
+    let rawFrameCount = 0;
     window.addEventListener('message', (event) => {
       if (event.source !== window) return;
       const d = event.data as { ch?: unknown; d?: unknown; dir?: string; sz?: number } | null;
       if (!d || d.ch !== RAW_FRAME_CHANNEL) return;
+      rawFrameCount++;
+      if (rawFrameCount === 1) {
+        console.log(`[APXM:content] first raw frame via inline proxy: dir=${d.dir} sz=${d.sz}`);
+      }
       const raw = d.d;
       const direction: 'inbound' | 'outbound' = d.dir === 'o' ? 'outbound' : 'inbound';
       let text: string;
@@ -90,6 +96,7 @@ export default defineContentScript({
         text = new TextDecoder().decode(raw);
         size = typeof d.sz === 'number' ? d.sz : raw.byteLength;
       } else {
+        console.warn(`[APXM:content] raw frame bridge: unexpected data type ${Object.prototype.toString.call(raw)}`);
         return;
       }
       for (const msg of decodeFrame(text, direction, size)) {
@@ -165,14 +172,16 @@ export default defineContentScript({
       }
     });
 
-    // 1. Inject main-world interceptor (XHR proxy + WebSocket proxy on non-Firefox)
+    // 1. Inject main-world interceptor (XHR proxy + WebSocket proxy if inline proxy failed)
     injectScript('/ws-interceptor.js', { keepInDom: true });
     if (debug) markStep(3, 'ok');
+    console.log(`[APXM:content] ws-interceptor.js injected @${performance.now().toFixed(0)}ms`);
 
     // 2. Poll for interceptor readiness via shared DOM attribute
     //    Always poll — not just in debug mode. Without this wait, the bridge
     //    initializes before the interceptor is ready (race condition on Orion).
     const interceptorReady = await pollForAttribute('prunLinkInterceptor', 'ready', 3000);
+    console.log(`[APXM:content] interceptor: ${interceptorReady ? 'ready' : 'TIMEOUT'} @${performance.now().toFixed(0)}ms`);
 
     // Always restore blocked scripts — even on failure, APEX must be able to
     // load. On success the proxies are installed; on failure we at least let

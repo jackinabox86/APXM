@@ -25,19 +25,22 @@ function handleMessage(message: ProcessedMessage): void {
 
 export default defineUnlistedScript(() => {
   const t0 = performance.now();
+  console.log(`[APXM:interceptor] starting @${t0.toFixed(1)}ms`);
   log(`Installing interceptor @${t0.toFixed(1)}ms`);
 
   // 1. Set up message callback
   setMessageCallback(handleMessage);
 
-  // 2. Install WebSocket proxy
+  // 2. Install WebSocket proxy (skipped if inline proxy already active)
   installWebSocketProxy();
 
   // 3. Install XHR proxy (for polling fallback)
   installXHRProxy();
+  console.log('[APXM:interceptor] XHR proxy installed');
 
   // Signal readiness to content script via shared DOM attribute
   document.documentElement.dataset.prunLinkInterceptor = 'ready';
+  console.log(`[APXM:interceptor] ready @${performance.now().toFixed(1)}ms (+${(performance.now() - t0).toFixed(1)}ms)`);
 
   log(`Interceptor ready @${performance.now().toFixed(1)}ms (+${(performance.now() - t0).toFixed(1)}ms)`);
 });
