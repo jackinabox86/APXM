@@ -58,6 +58,10 @@ export const storagesStore = {
     if (!_id) return undefined;
     return useStorageStore.getState().getById(_id);
   },
+  getByName(name: string | null | undefined): PrunApi.Store | undefined {
+    if (!name) return undefined;
+    return useStorageStore.getState().getAll().find((s) => s.name === name);
+  },
 };
 
 // APXM does not yet have warehouses/exchanges entity stores. Stub to safe
