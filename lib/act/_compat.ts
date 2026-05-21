@@ -20,16 +20,21 @@ import {
 } from '../../stores/entities/storage';
 import { getWorkforceBySiteId } from '../../stores/entities/workforce';
 import { getProductionBySiteId } from '../../stores/entities/production';
+import { getEntityDisplayName } from '../address';
+import {
+  calculateProductionRates,
+  calculateWorkforceConsumption,
+  getInventoryFromStores,
+} from '../../core/burn';
 
 export const sitesStore = {
   getByPlanetNaturalIdOrName(query: string | undefined): PrunApi.Site | undefined {
     if (!query) return undefined;
     const all = useSitesStore.getState().getAll();
-    // APXM's site does not yet carry planet name lookups; match on naturalId
-    // (planet) or fall back to siteId. Later stages should refine this.
     return (
       all.find((s) => s.address?.lines?.some((l) => l.entity?.naturalId === query)) ??
-      all.find((s) => s.siteId === query)
+      all.find((s) => s.siteId === query) ??
+      all.find((s) => getEntityDisplayName(s.address) === query)
     );
   },
 };
@@ -184,11 +189,29 @@ export interface MaterialBurn {
 export type PlanetBurn = Record<string, MaterialBurn>;
 
 export function calculatePlanetBurn(
-  _production: PrunApi.ProductionLine[],
-  _workforce: PrunApi.Workforce[] | undefined,
-  _stores: PrunApi.Store[] | undefined,
+  production: PrunApi.ProductionLine[],
+  workforce: PrunApi.Workforce[] | undefined,
+  stores: PrunApi.Store[] | undefined,
 ): PlanetBurn {
-  // Stage 1 stub. The full computation lives in core/burn.ts as per-site
-  // BurnRate aggregates; later stages will collapse it to a planet-keyed map.
-  return {};
+  const prodRates = calculateProductionRates(production);
+  const wfRates = calculateWorkforceConsumption(workforce ?? []);
+  const inventory = getInventoryFromStores(stores ?? []);
+
+  const tickers = new Set([...prodRates.keys(), ...wfRates.keys()]);
+  const result: PlanetBurn = {};
+  for (const ticker of tickers) {
+    const prod = prodRates.get(ticker);
+    const wf = wfRates.get(ticker)?.consumption ?? 0;
+    const inv = inventory.get(ticker) ?? 0;
+    const input = prod?.input ?? 0;
+    const output = prod?.output ?? 0;
+    result[ticker] = {
+      dailyAmount: output - input - wf,
+      inventory: inv,
+      workforce: wf,
+      input,
+      output,
+    };
+  }
+  return result;
 }
