@@ -58,7 +58,7 @@ export function Header() {
           onClick={handleRefresh}
           disabled={!canRefresh}
           aria-label="Refresh next base"
-          className={`min-h-touch flex items-center gap-1 text-sm ${
+          className={`min-h-touch flex items-center gap-1.5 px-1 text-xl ${
             isRefreshing
               ? 'cursor-wait text-apxm-muted'
               : canRefresh
@@ -67,7 +67,7 @@ export function Header() {
           }`}
         >
           <span className={isRefreshing ? 'animate-spin inline-block' : ''}>↻</span>
-          <span className={`text-xs ${counterColor}`}>{refreshedCount}/{totalCount}</span>
+          <span className={`text-sm ${counterColor}`}>{refreshedCount}/{totalCount}</span>
         </button>
       </div>
       <div className="flex items-center gap-3">
