@@ -58,7 +58,7 @@ export function Header() {
           onClick={handleRefresh}
           disabled={!canRefresh}
           aria-label="Refresh next base"
-          className={`min-h-touch flex items-center gap-1.5 px-1 text-xl ${
+          className={`min-h-touch flex items-center gap-1.5 px-1 text-base ${
             isRefreshing
               ? 'cursor-wait text-apxm-muted'
               : canRefresh
