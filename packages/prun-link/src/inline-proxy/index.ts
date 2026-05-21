@@ -40,6 +40,12 @@ function _sz(d){return typeof d==='string'?d.length:(d&&d.byteLength||0);}
 function _preview(d){return typeof d==='string'?JSON.stringify(d.slice(0,16)):'[binary '+_sz(d)+'b]';}
 var _sn=0,_rn=0;
 
+// Capture addEventListener now, before refined-prun overwrites WebSocket.prototype.addEventListener
+// with a recursive stub: function(t,l,o){return this.addEventListener(t,l,o)}.
+// Calling that stub on a native (non-Proxy) ws causes infinite recursion → stack overflow,
+// which silently kills the WebSocket constructor and prevents any sends/receives.
+var _origAEL=_NWS.prototype.addEventListener;
+
 // Intercept at the PROTOTYPE level so that refined-prun's Proxy cannot bypass
 // it by returning WebSocket.prototype.send.bind(ws). Any call path that
 // ultimately reaches WebSocket.prototype.send will go through this wrapper,
@@ -58,7 +64,11 @@ return r;
 
 function _inst(ws){
 console.log('[APXM:proxy] WS created url='+ws.url+' @'+performance.now().toFixed(1)+'ms');
-ws.addEventListener('message',function(e){
+// Use the captured (pre-modification) addEventListener directly so we bypass
+// refined-prun's recursive prototype stub regardless of whether ws is a native
+// WebSocket (case: APXM ran first) or a refined-prun instance Proxy (case:
+// refined-prun ran first, where calling through the Proxy's get trap is safe).
+_origAEL.call(ws,'message',function(e){
 _rn++;
 if(_rn<=10)console.log('[APXM:proxy] recv#'+_rn+' '+_preview(e.data));
 try{window.postMessage({ch:_CH,d:e.data,dir:'i',sz:_sz(e.data)},'*');}
