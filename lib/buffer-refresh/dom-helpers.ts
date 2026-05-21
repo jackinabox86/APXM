@@ -6,7 +6,7 @@
  * callers decide how to handle missing elements.
  */
 
-import { log } from '../debug/logger';
+import { log, error } from '../debug/logger';
 
 // -- Saved styles type --
 
@@ -32,7 +32,7 @@ export function isAtStacksTopLevel(): boolean {
 export function findBufferStackHeader(): HTMLElement | null {
   const headings = document.querySelectorAll('#container h2');
   for (const h2 of headings) {
-    if (h2.textContent?.trim() === 'Buffer') {
+    if (h2.textContent?.trim().toLowerCase() === 'buffer') {
       return h2 as HTMLElement;
     }
   }
@@ -44,21 +44,38 @@ export function findBufferStackHeader(): HTMLElement | null {
  *
  * APEX breadcrumbs show "stack" (singular) when inside a buffer, and
  * "stacks" (plural) from the buffer list level. Match both to handle
- * multi-level navigation depth. Element type is unknown (could be any tag),
- * so we search all leaf elements by text match.
+ * multi-level navigation depth.
+ *
+ * Two-pass search:
+ * 1. Leaf elements (no child elements) — handles plain text and <span>Stacks</span>.
+ * 2. Any element whose trimmed textContent matches — handles mobile patterns like
+ *    <button><svg/> Stacks</button> where the SVG is a child element but has empty
+ *    textContent, so the button's textContent still equals "Stacks". The last match
+ *    in document pre-order is kept, yielding the most specific element.
  */
 export function findBackNav(): HTMLElement | null {
   // APEX may apply CSS text-transform — compare case-insensitively
-  const all = document.body.querySelectorAll('*');
+  const all = document.body.querySelectorAll<HTMLElement>('*');
+
   for (const el of all) {
     if (el.children.length === 0) {
       const text = el.textContent?.trim().toLowerCase();
       if (text === 'stacks' || text === 'stack') {
-        return el as HTMLElement;
+        return el;
       }
     }
   }
-  return null;
+
+  // Fallback: elements whose textContent matches even with icon/SVG children.
+  // Last match in document order = most specific (deepest) element.
+  let fallback: HTMLElement | null = null;
+  for (const el of all) {
+    const text = el.textContent?.trim().toLowerCase();
+    if (text === 'stacks' || text === 'stack') {
+      fallback = el;
+    }
+  }
+  return fallback;
 }
 
 /**
@@ -74,7 +91,13 @@ export async function navigateToStacksTopLevel(timeoutMs: number, maxAttempts: n
   for (let i = 0; i < maxAttempts; i++) {
     if (isAtStacksTopLevel()) return true;
     const nav = findBackNav();
-    if (!nav) return false;
+    if (!nav) {
+      const h2s = Array.from(document.querySelectorAll('#container h2'))
+        .map((h) => `"${h.textContent?.trim()}"`)
+        .join(', ');
+      error(`BufferRefresh: navigateToStacksTopLevel: no back-nav found (attempt ${i + 1}); #container h2s: [${h2s || 'none'}]`);
+      return false;
+    }
     nav.click();
     // Wait for Buffer stack header — confirms we reached top level
     const header = await waitForElement(findBufferStackHeader, timeoutMs);

@@ -24,7 +24,7 @@ export interface BufferRefreshOptions {
   siteId: string;
   /** APEX buffer command, e.g. "BS NIK" — uses planet naturalId, not UUID */
   command: string;
-  /** Timeout per DOM wait step in ms (default 800) */
+  /** Timeout per DOM wait step in ms (default 1500) */
   stepTimeoutMs?: number;
 }
 
@@ -33,7 +33,7 @@ export interface BatchRefreshOptions {
   siteIds: string[];
   /** Delay between individual refreshes in ms (default 300) */
   delayBetweenMs?: number;
-  /** Timeout per DOM wait step in ms (default 800) */
+  /** Timeout per DOM wait step in ms (default 1500) */
   stepTimeoutMs?: number;
   /** Called after each site completes */
   onProgress?: (completed: number, total: number, siteId: string, success: boolean) => void;
