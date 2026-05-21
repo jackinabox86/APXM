@@ -2,7 +2,7 @@
 // Registers all ACT modules on first import.
 import '../../lib/act/register-all';
 
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSitesStore } from '../../stores/entities/sites';
 import { useGameState } from '../../stores/gameState';
 import { getEntityDisplayName } from '../../lib/address';
@@ -31,8 +31,13 @@ const BTN_SECONDARY =
   'font-semibold hover:border-prun-yellow hover:text-prun-yellow disabled:opacity-40 disabled:cursor-not-allowed';
 
 export function BurnActView() {
-  const { setActiveTab, activeActPlanet, setActiveActPlanet } = useGameState();
-  const sites = useSitesStore((s) => s.getAll());
+  const setActiveTab = useGameState((s) => s.setActiveTab);
+  const activeActPlanet = useGameState((s) => s.activeActPlanet);
+  const setActiveActPlanet = useGameState((s) => s.setActiveActPlanet);
+
+  // Stable selector — getAll() creates a new array every call so subscribing
+  // to lastUpdated instead avoids React 19 useSyncExternalStore tearing loops.
+  const sitesLastUpdated = useSitesStore((s) => s.lastUpdated);
 
   // Form state
   const [planet, setPlanet] = useState(activeActPlanet ?? '');
@@ -79,9 +84,12 @@ export function BurnActView() {
     };
   }, []);
 
-  const siteOptions = sites
-    .map((s) => ({ id: s.siteId, label: getEntityDisplayName(s.address) }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+  const siteOptions = useMemo(
+    () => useSitesStore.getState().getAll()
+      .map((s) => ({ id: s.siteId, label: getEntityDisplayName(s.address) }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    [sitesLastUpdated],
+  );
 
   function buildPackage() {
     const planetName =
