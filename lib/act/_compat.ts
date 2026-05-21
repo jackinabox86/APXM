@@ -105,12 +105,50 @@ export function isFiniteOrder(order: CXOrder): boolean {
 // Utility functions
 // ---------------------------------------------------------------------------
 
+export function fixed0(value: number): string {
+  return Math.round(value).toString();
+}
+
 export function fixed02(value: number): string {
   return value.toFixed(2);
 }
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Wait until condition() returns true, polling every intervalMs.
+ * Rejects with an Error after timeoutMs if condition never becomes true.
+ *
+ * Replaces Vue's watchWhile(cond) pattern: watchWhile(() => x) waits while x
+ * is truthy, so the APXM equivalent is waitUntil(() => !x).
+ */
+export function waitUntil(
+  condition: () => boolean,
+  intervalMs = 100,
+  timeoutMs = 15000,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (condition()) {
+      resolve();
+      return;
+    }
+    const interval = setInterval(() => {
+      if (condition()) {
+        clearInterval(interval);
+        resolve();
+      }
+    }, intervalMs);
+    setTimeout(() => {
+      clearInterval(interval);
+      reject(new Error('waitUntil timed out'));
+    }, timeoutMs);
+  });
+}
+
+export function focusElement(el: Element): void {
+  (el as HTMLElement).focus();
 }
 
 // `deepToRaw` in rprun strips Vue reactivity wrappers. In APXM the data is
