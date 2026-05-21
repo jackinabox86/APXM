@@ -79,6 +79,33 @@ export function findBackNav(): HTMLElement | null {
 }
 
 /**
+ * Mobile APEX back-navigation fallback.
+ *
+ * On mobile APEX the stack breadcrumbs (text "stacks"/"stack") are replaced
+ * by an icon-only back button. That button has no text content so findBackNav()
+ * misses it. We locate it structurally: in the APEX buffer-panel header the
+ * controls appear in order [back-icon] [–] [|] [x] [:]. Find the "–" (minimize)
+ * button and return the nearest preceding button that has no visible text.
+ *
+ * Note: the en-dash "–" (U+2013) is what APEX renders for minimize; a plain
+ * hyphen-minus "-" would be a different character.
+ */
+export function findMobileBackButton(): HTMLElement | null {
+  const buttons = Array.from(document.querySelectorAll<HTMLElement>('button'));
+  const minimizeIdx = buttons.findIndex((b) => b.textContent?.trim() === '–');
+  if (minimizeIdx <= 0) return null;
+
+  // Walk backward from "–" looking for the first icon-only (no text) button.
+  // Limit search to a small window so we don't accidentally reach unrelated UI.
+  for (let i = minimizeIdx - 1; i >= Math.max(0, minimizeIdx - 4); i--) {
+    if ((buttons[i].textContent ?? '').trim() === '') {
+      return buttons[i];
+    }
+  }
+  return null;
+}
+
+/**
  * Dump DOM state to the error log when back-navigation fails.
  * Uses error() so output is visible even in production / mobile (no devtools).
  */
@@ -126,11 +153,15 @@ function logNavigationFailure(attempt: number): void {
 export async function navigateToStacksTopLevel(timeoutMs: number, maxAttempts: number = 5): Promise<boolean> {
   for (let i = 0; i < maxAttempts; i++) {
     if (isAtStacksTopLevel()) return true;
-    const nav = findBackNav();
+
+    // Primary: text-based breadcrumb nav ("stack" / "stacks").
+    // Fallback: icon-only mobile back button identified by proximity to "–".
+    const nav = findBackNav() ?? findMobileBackButton();
     if (!nav) {
       logNavigationFailure(i + 1);
       return false;
     }
+
     nav.click();
     // Wait for Buffer stack header — confirms we reached top level
     const header = await waitForElement(findBufferStackHeader, timeoutMs);
