@@ -16,8 +16,10 @@
 /** postMessage channel for raw WebSocket frame forwarding. */
 export const RAW_FRAME_CHANNEL = '__apxmRawFrame';
 
-/** Main-world flag set once the inline proxy is installed. */
+/** Main-world flag (window property) — visible only from main world. */
 const INSTALLED_FLAG = '__apxmWsProxied';
+/** DOM attribute flag — shared between main world and content-script world. */
+const DOM_ATTR = 'apxmProxy';
 
 function isDebug(): boolean {
   return __DEV__ || location.search.includes('apxm_debug');
@@ -34,17 +36,28 @@ function buildInlineScript(): string {
 if(window.__apxmWsProxied)return;
 var _NWS=window.WebSocket;
 var _CH='${RAW_FRAME_CHANNEL}';
-var _dbg=location.search.includes('apxm_debug');
 function _sz(d){return typeof d==='string'?d.length:(d&&d.byteLength||0);}
+function _preview(d){return typeof d==='string'?JSON.stringify(d.slice(0,16)):'[binary '+_sz(d)+'b]';}
+var _sn=0,_rn=0;
 function _inst(ws){
-if(_dbg)console.log('[APXM:proxy] new WebSocket url='+ws.url+' @'+performance.now().toFixed(1)+'ms');
+console.log('[APXM:proxy] WS created url='+ws.url+' @'+performance.now().toFixed(1)+'ms');
 ws.addEventListener('message',function(e){
-try{window.postMessage({ch:_CH,d:e.data,dir:'i',sz:_sz(e.data)},'*')}catch(_){}
+_rn++;
+if(_rn<=10)console.log('[APXM:proxy] recv#'+_rn+' '+_preview(e.data));
+try{
+window.postMessage({ch:_CH,d:e.data,dir:'i',sz:_sz(e.data)},'*');
+}catch(pmErr){console.error('[APXM:proxy] recv postMessage failed:',pmErr);}
 });
 var _ns=ws.send.bind(ws);
 ws.send=function(data){
-var r=_ns(data);
-try{window.postMessage({ch:_CH,d:data,dir:'o',sz:_sz(data)},'*')}catch(_){}
+_sn++;
+if(_sn<=30)console.log('[APXM:proxy] send#'+_sn+' '+_preview(data));
+var r;
+try{r=_ns(data);}
+catch(sendErr){console.error('[APXM:proxy] native send#'+_sn+' FAILED:',sendErr);return;}
+try{
+window.postMessage({ch:_CH,d:data,dir:'o',sz:_sz(data)},'*');
+}catch(pmErr){console.error('[APXM:proxy] send postMessage failed:',pmErr);}
 return r;
 };
 }
@@ -59,6 +72,7 @@ WebSocketProxy.OPEN=_NWS.OPEN;
 WebSocketProxy.CLOSING=_NWS.CLOSING;
 WebSocketProxy.CLOSED=_NWS.CLOSED;
 window.__apxmWsProxied=true;
+document.documentElement.dataset.${DOM_ATTR}='1';
 window.WebSocket=WebSocketProxy;
 console.log('[APXM:proxy] main-world installed @'+performance.now().toFixed(1)+'ms');
 })();`;
@@ -79,7 +93,11 @@ console.log('[APXM:proxy] main-world installed @'+performance.now().toFixed(1)+'
  */
 export function installInlineProxy(): boolean {
   try {
-    if ((window as Record<string, unknown>)[INSTALLED_FLAG]) return true;
+    // Use a DOM attribute as the readiness signal — DOM is shared between the
+    // main world and the content-script isolated world, unlike window properties
+    // which are namespaced per world (so window.__apxmWsProxied set by the
+    // inline script is invisible here).
+    if (document.documentElement.dataset[DOM_ATTR]) return true;
 
     const script = document.createElement('script');
     script.textContent = buildInlineScript();
@@ -88,13 +106,14 @@ export function installInlineProxy(): boolean {
     document.documentElement.appendChild(script);
     script.remove();
 
-    const installed = !!(window as Record<string, unknown>)[INSTALLED_FLAG];
+    // The inline script sets document.documentElement.dataset[DOM_ATTR] = '1'
+    // synchronously, so this is readable immediately after the append.
+    const installed = !!document.documentElement.dataset[DOM_ATTR];
 
-    // Always log — this is the first thing to check when debugging load issues.
     if (installed) {
-      if (isDebug()) console.log(`[APXM:proxy] content-script confirmed inline install @${performance.now().toFixed(1)}ms`);
+      console.log(`[APXM:proxy] content-script confirmed via DOM attr @${performance.now().toFixed(1)}ms`);
     } else {
-      console.warn('[APXM:proxy] inline proxy FAILED — inline scripts may be blocked by CSP; falling back to ws-interceptor.js');
+      console.warn('[APXM:proxy] inline proxy FAILED — inline scripts blocked by CSP; falling back to ws-interceptor.js');
     }
 
     return installed;
