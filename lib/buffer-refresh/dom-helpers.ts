@@ -96,15 +96,36 @@ export function findMobileBackButton(): HTMLElement | null {
   // U+002D hyphen-minus, U+2013 en-dash, U+2014 em-dash, U+2212 minus sign.
   const isDash = (s: string) => /^[-–—−]$/.test(s);
 
+  /**
+   * Check if a button is visually icon-only.
+   *
+   * `.trim() === ''` fails when the button contains invisible non-whitespace
+   * Unicode: zero-width spaces (U+200B–U+200D, U+FEFF) or private-use-area
+   * characters (U+E000–U+F8FF) used by icon fonts. Those appear as "" in the
+   * console but have length > 0 and are not stripped by String.trim().
+   */
+  function isIconOnly(el: HTMLElement): boolean {
+    const text = el.textContent ?? '';
+    if (text.trim() === '') return true;
+    // Strip zero-width chars (U+200B-U+200D, U+FEFF) + PUA icon font chars (U+E000-U+F8FF).
+    const visible = text.replace(/[\s​-‍﻿-]/g, '');
+    return visible === '';
+  }
+
   function iconOnlyBefore(anchorIdx: number): HTMLElement | null {
     for (let i = anchorIdx - 1; i >= Math.max(0, anchorIdx - 5); i--) {
-      if ((buttons[i].textContent ?? '').trim() === '') return buttons[i];
+      if (isIconOnly(buttons[i])) return buttons[i];
     }
     return null;
   }
 
   const minimizeIdx = buttons.findIndex((b) => isDash(b.textContent?.trim() ?? ''));
   if (minimizeIdx >= 1) {
+    // Log codepoints of the immediate predecessor so we can verify the invisible-char hypothesis.
+    const candidateText = buttons[minimizeIdx - 1].textContent ?? '';
+    const cps = [...candidateText].map((c) => (c.codePointAt(0) ?? 0).toString(16).padStart(4, '0')).join(' ');
+    error(`findMobileBackButton: candidate[${minimizeIdx - 1}] len=${candidateText.length} codepoints=[${cps || 'empty'}]`);
+
     const found = iconOnlyBefore(minimizeIdx);
     if (found) {
       log('findMobileBackButton: found via minimize anchor at index', minimizeIdx);
