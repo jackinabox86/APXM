@@ -18,6 +18,8 @@ import { useSiteSourceStore } from './site-data-sources';
 import { useScreensStore, type ScreenInfo } from './screens';
 import { useCompanyStore } from './company';
 import { useWarehouseStore, type WarehouseLocation } from './warehouses';
+import { useMaterialsStore } from './entities/materials';
+import { useCxobStore } from './cxob';
 
 type MessageHandler = (msg: ProcessedMessage) => void;
 const typeHandlers = new Map<string, MessageHandler>();
@@ -569,5 +571,105 @@ export function initMessageHandlers(): void {
     if (typeof payload?.id === 'string') {
       useScreensStore.getState().removeScreen(payload.id);
     }
+  });
+
+  // ============================================================================
+  // World Data — materials and building categories
+  // ============================================================================
+
+  typeHandlers.set('WORLD_MATERIAL_CATEGORIES', (msg: ProcessedMessage) => {
+    const payload = extractPayload(msg) as { categories?: unknown[] };
+    if (!Array.isArray(payload?.categories)) {
+      warn('WORLD_MATERIAL_CATEGORIES: unexpected payload structure', payload);
+      return;
+    }
+    const categories: PrunApi.MaterialCategory[] = [];
+    for (const cat of payload.categories) {
+      if (!cat || typeof cat !== 'object') continue;
+      const c = cat as Record<string, unknown>;
+      if (typeof c.id !== 'string' || typeof c.name !== 'string' || !Array.isArray(c.materials)) {
+        continue;
+      }
+      const materials: PrunApi.Material[] = [];
+      for (const m of c.materials as unknown[]) {
+        if (!m || typeof m !== 'object') continue;
+        const mat = m as Record<string, unknown>;
+        if (
+          typeof mat.ticker === 'string' &&
+          typeof mat.name === 'string' &&
+          typeof mat.id === 'string' &&
+          typeof mat.weight === 'number' &&
+          typeof mat.volume === 'number'
+        ) {
+          materials.push({
+            id: mat.id as string,
+            name: mat.name as string,
+            ticker: mat.ticker as string,
+            category: typeof mat.category === 'string' ? mat.category : c.name as string,
+            weight: mat.weight as number,
+            volume: mat.volume as number,
+            resource: typeof mat.resource === 'boolean' ? mat.resource : false,
+          });
+        }
+      }
+      categories.push({ id: c.id as string, name: c.name as string, materials });
+    }
+    useMaterialsStore.getState().setFromCategories(categories);
+  });
+
+  // ============================================================================
+  // Commodity Exchange — order book data
+  // ============================================================================
+
+  typeHandlers.set('COMEX_BROKER_DATA', (msg: ProcessedMessage) => {
+    const payload = extractPayload(msg) as Record<string, unknown> | null;
+    if (!payload || typeof payload !== 'object') {
+      warn('COMEX_BROKER_DATA: unexpected payload structure', payload);
+      return;
+    }
+
+    // Resolve material ticker (field name varies: "ticker" or "material.ticker")
+    let materialTicker: string | undefined;
+    if (typeof payload.ticker === 'string') {
+      materialTicker = payload.ticker;
+    } else if (payload.material && typeof payload.material === 'object') {
+      const mat = payload.material as Record<string, unknown>;
+      if (typeof mat.ticker === 'string') materialTicker = mat.ticker;
+    }
+
+    // Resolve exchange code (field name varies)
+    let exchangeCode: string | undefined;
+    if (typeof payload.exchangeCode === 'string') {
+      exchangeCode = payload.exchangeCode;
+    } else if (payload.exchange && typeof payload.exchange === 'object') {
+      const ex = payload.exchange as Record<string, unknown>;
+      if (typeof ex.code === 'string') exchangeCode = ex.code;
+    }
+
+    if (!materialTicker || !exchangeCode) {
+      warn('COMEX_BROKER_DATA: could not parse ticker/exchange', payload);
+      return;
+    }
+
+    const cxTicker = `${materialTicker}.${exchangeCode}`;
+
+    function parseOrders(raw: unknown): PrunApi.CXOrder[] {
+      if (!Array.isArray(raw)) return [];
+      return raw.flatMap((o) => {
+        if (!o || typeof o !== 'object') return [];
+        const order = o as Record<string, unknown>;
+        const limit = order.limit as Record<string, unknown> | undefined;
+        const limitAmount = typeof limit?.amount === 'number' ? limit.amount : undefined;
+        if (limitAmount === undefined) return [];
+        const rawAmount = order.amount ?? order.itemCount ?? null;
+        const amount = typeof rawAmount === 'number' ? rawAmount : null;
+        return [{ amount, limit: { amount: limitAmount } }];
+      });
+    }
+
+    useCxobStore.getState().setOrderBook(cxTicker, {
+      sellingOrders: parseOrders(payload.sellingOrders),
+      buyingOrders: parseOrders(payload.buyingOrders),
+    });
   });
 }

@@ -26,6 +26,9 @@ import {
   calculateWorkforceConsumption,
   getInventoryFromStores,
 } from '../../core/burn';
+import { useWarehouseStore } from '../../stores/warehouses';
+import { useMaterialsStore } from '../../stores/entities/materials';
+import { useCxobStore } from '../../stores/cxob';
 
 export const sitesStore = {
   getByPlanetNaturalIdOrName(query: string | undefined): PrunApi.Site | undefined {
@@ -69,12 +72,10 @@ export const storagesStore = {
   },
 };
 
-// APXM does not yet have warehouses/exchanges entity stores. Stub to safe
-// empties so generateState() in step-generator still works (it will produce
-// an empty WAR map, which downstream logic tolerates).
 export const warehousesStore = {
-  getByEntityNaturalId(_naturalId: string | undefined): { storeId: string } | undefined {
-    return undefined;
+  getByEntityNaturalId(naturalId: string | undefined): { storeId: string } | undefined {
+    if (!naturalId) return undefined;
+    return useWarehouseStore.getState().getByEntityNaturalId(naturalId);
   },
 };
 
@@ -84,25 +85,18 @@ export const exchangesStore = {
   },
 };
 
-// APXM does not yet have a materials store; stub returns undefined so that
-// formatTotals() in action-runner gracefully shows zero weight/volume.
 export const materialsStore = {
-  getByTicker(_ticker: string): { weight: number; volume: number } | undefined {
-    return undefined;
+  getByTicker(ticker: string): { weight: number; volume: number } | undefined {
+    return useMaterialsStore.getState().getByTicker(ticker);
   },
 };
 
-// CX order book store — needed by cx-buy/utils. Stubbed.
-export interface CXOrder {
-  amount: number | null;
-  limit: { amount: number };
-}
-export interface CXOrderBook {
-  sellingOrders: CXOrder[];
-}
+export type CXOrder = import('../../types/prun-api').PrunApi.CXOrder;
+export type CXOrderBook = import('../../types/prun-api').PrunApi.CXOrderBook;
+
 export const cxobStore = {
-  getByTicker(_cxTicker: string): CXOrderBook | undefined {
-    return undefined;
+  getByTicker(cxTicker: string): CXOrderBook | undefined {
+    return useCxobStore.getState().getByTicker(cxTicker);
   },
 };
 

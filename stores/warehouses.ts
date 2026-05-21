@@ -13,6 +13,7 @@ interface WarehouseState {
   addWarehouse: (warehouse: WarehouseLocation) => void;
   removeWarehouse: (warehouseId: string) => void;
   getBySystem: (systemNaturalId: string) => WarehouseLocation | undefined;
+  getByEntityNaturalId: (naturalId: string) => WarehouseLocation | undefined;
 }
 
 export const useWarehouseStore = create<WarehouseState>((set, get) => ({
@@ -34,4 +35,7 @@ export const useWarehouseStore = create<WarehouseState>((set, get) => ({
     })),
   getBySystem: (systemNaturalId) =>
     get().warehouses.find((w) => w.systemNaturalId === systemNaturalId),
+  getByEntityNaturalId: (naturalId) =>
+    get().warehouses.find((w) => w.stationNaturalId === naturalId) ??
+    get().warehouses.find((w) => w.systemNaturalId === naturalId),
 }));

@@ -43,6 +43,20 @@ export namespace PrunApi {
   }
 
   // ============================================================================
+  // Commodity Exchange Order Book
+  // ============================================================================
+
+  export interface CXOrder {
+    amount: number | null;
+    limit: { amount: number };
+  }
+
+  export interface CXOrderBook {
+    sellingOrders: CXOrder[];
+    buyingOrders: CXOrder[];
+  }
+
+  // ============================================================================
   // Address Types
   // ============================================================================
 
