@@ -82,26 +82,51 @@ export function findBackNav(): HTMLElement | null {
  * Mobile APEX back-navigation fallback.
  *
  * On mobile APEX the stack breadcrumbs (text "stacks"/"stack") are replaced
- * by an icon-only back button. That button has no text content so findBackNav()
- * misses it. We locate it structurally: in the APEX buffer-panel header the
- * controls appear in order [back-icon] [–] [|] [x] [:]. Find the "–" (minimize)
- * button and return the nearest preceding button that has no visible text.
+ * by an icon-only back button with no text content. We locate it structurally:
+ * APEX's buffer-panel header renders controls in order [back-icon] [–] [|] [x] [:].
  *
- * Note: the en-dash "–" (U+2013) is what APEX renders for minimize; a plain
- * hyphen-minus "-" would be a different character.
+ * Strategy 1: find the minimize button (any dash variant) and walk backward
+ *   to the nearest preceding icon-only (empty text) button.
+ * Strategy 2: same but anchored on the close button ("x") for resilience.
  */
 export function findMobileBackButton(): HTMLElement | null {
   const buttons = Array.from(document.querySelectorAll<HTMLElement>('button'));
-  const minimizeIdx = buttons.findIndex((b) => b.textContent?.trim() === '–');
-  if (minimizeIdx <= 0) return null;
 
-  // Walk backward from "–" looking for the first icon-only (no text) button.
-  // Limit search to a small window so we don't accidentally reach unrelated UI.
-  for (let i = minimizeIdx - 1; i >= Math.max(0, minimizeIdx - 4); i--) {
-    if ((buttons[i].textContent ?? '').trim() === '') {
-      return buttons[i];
+  // Match any single-character dash variant APEX might use for minimize.
+  // U+002D hyphen-minus, U+2013 en-dash, U+2014 em-dash, U+2212 minus sign.
+  const isDash = (s: string) => /^[-–—−]$/.test(s);
+
+  function iconOnlyBefore(anchorIdx: number): HTMLElement | null {
+    for (let i = anchorIdx - 1; i >= Math.max(0, anchorIdx - 5); i--) {
+      if ((buttons[i].textContent ?? '').trim() === '') return buttons[i];
+    }
+    return null;
+  }
+
+  const minimizeIdx = buttons.findIndex((b) => isDash(b.textContent?.trim() ?? ''));
+  if (minimizeIdx >= 1) {
+    const found = iconOnlyBefore(minimizeIdx);
+    if (found) {
+      log('findMobileBackButton: found via minimize anchor at index', minimizeIdx);
+      return found;
     }
   }
+
+  // Fallback anchor: "x" close button, in case minimize didn't match.
+  const closeIdx = buttons.findIndex((b) => b.textContent?.trim() === 'x');
+  if (closeIdx >= 1) {
+    const found = iconOnlyBefore(closeIdx);
+    if (found) {
+      log('findMobileBackButton: found via close anchor at index', closeIdx);
+      return found;
+    }
+  }
+
+  log(
+    'findMobileBackButton: not found — minimizeIdx:', minimizeIdx,
+    'closeIdx:', closeIdx,
+    'buttons:', buttons.slice(0, 8).map((b) => `"${(b.textContent ?? '').trim().slice(0, 20)}"`)
+  );
   return null;
 }
 
