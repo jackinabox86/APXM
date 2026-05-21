@@ -42,3 +42,18 @@ export function onMessage(listener: MessageListener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
+
+/**
+ * Deliver a message directly to all onMessage subscribers without going
+ * through the postMessage channel. Used by the inline proxy's raw-frame
+ * bridge, which decodes frames in the content-script world.
+ */
+export function dispatchMessage(msg: ProcessedMessage): void {
+  for (const listener of listeners) {
+    try {
+      listener(msg);
+    } catch {
+      // A faulty subscriber must not stop delivery to the others.
+    }
+  }
+}

@@ -9,7 +9,7 @@
     "./script-control": "./src/script-control/index.ts",
     "./message-bus/main-world": "./src/message-bus/main-world.ts",
     "./message-bus/content-bridge": "./src/message-bus/content-bridge.ts",
-    "./firefox-sync-proxy": "./src/firefox-sync-proxy/index.ts"
+    "./inline-proxy": "./src/inline-proxy/index.ts"
   },
   "license": "MIT"
 }

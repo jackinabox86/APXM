@@ -1,9 +1,10 @@
 import { createRoot } from 'react-dom/client';
 import { App } from '../components/App';
 import type { ProcessedMessage } from '@prun/link';
-import { initMessageBridge, onMessage } from '@prun/link/message-bus/content-bridge';
+import { initMessageBridge, onMessage, dispatchMessage } from '@prun/link/message-bus/content-bridge';
 import { installScriptBlocker, restoreBlockedScripts } from '@prun/link/script-control';
-import { installFirefoxSyncProxy } from '@prun/link/firefox-sync-proxy';
+import { installInlineProxy, RAW_FRAME_CHANNEL } from '@prun/link/inline-proxy';
+import { decodeFrame } from '@prun/link/socket-io';
 import { useConnectionStore } from '../stores/connection';
 import { useSettingsStore, waitForSettingsHydration } from '../stores/settings';
 import { initMessageHandlers, processMessage } from '../stores/message-handlers';
@@ -43,10 +44,12 @@ export default defineContentScript({
     // MutationObserver on the shared DOM) wins that race reliably.
     installScriptBlocker();
 
-    // Firefox: install the synchronous WebSocket proxy via exportFunction +
-    // wrappedJSObject before any page script runs. This eliminates the race
-    // condition that causes intermittent failures on Firefox desktop.
-    const syncProxyInstalled = installFirefoxSyncProxy();
+    // Install the WebSocket proxy synchronously via an inline <script> element
+    // before any page scripts run. Using a plain JS constructor (not Firefox's
+    // exportFunction) makes the proxy compatible with extensions like
+    // refined-prun that wrap window.WebSocket with Proxy + Reflect.construct.
+    // Works on all platforms (Chrome, Firefox, Orion).
+    const inlineProxyInstalled = installInlineProxy();
 
     // Desktop detection — on desktop without ?apxm_force, run data pipeline
     // and bridge but skip the mobile UI overlay.
@@ -63,9 +66,36 @@ export default defineContentScript({
     }
 
     // 3. Init message bridge — must be ready before the first WebSocket frame
-    //    arrives (the Firefox sync proxy can deliver messages before ws-interceptor.js
+    //    arrives (the inline proxy can deliver messages before ws-interceptor.js
     //    even loads).
     initMessageBridge();
+
+    // 3b. Raw frame bridge for the inline proxy.
+    // The inline script (main world) can't import TypeScript — it posts raw
+    // WebSocket frame data here so the content-script world decodes it.
+    // ws-interceptor.js (which handles XHR polling) still uses the existing
+    // postMessage → initMessageBridge path for its messages.
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+      const d = event.data as { ch?: unknown; d?: unknown; dir?: string; sz?: number } | null;
+      if (!d || d.ch !== RAW_FRAME_CHANNEL) return;
+      const raw = d.d;
+      const direction: 'inbound' | 'outbound' = d.dir === 'o' ? 'outbound' : 'inbound';
+      let text: string;
+      let size: number;
+      if (typeof raw === 'string') {
+        text = raw;
+        size = typeof d.sz === 'number' ? d.sz : raw.length;
+      } else if (raw instanceof ArrayBuffer) {
+        text = new TextDecoder().decode(raw);
+        size = typeof d.sz === 'number' ? d.sz : raw.byteLength;
+      } else {
+        return;
+      }
+      for (const msg of decodeFrame(text, direction, size)) {
+        dispatchMessage(msg);
+      }
+    });
 
     // 4. Build message handler map (local to APXM, not registered on bridge)
     initMessageHandlers();
@@ -150,17 +180,17 @@ export default defineContentScript({
     restoreBlockedScripts();
 
     if (debug) markStep(4, interceptorReady ? 'ok' : 'fail');
-    if (!interceptorReady && !syncProxyInstalled) {
-      // Only abort if neither interceptor succeeded — on Firefox with the sync
-      // proxy installed, ws-interceptor.js timeout is non-fatal (WebSocket frames
+    if (!interceptorReady && !inlineProxyInstalled) {
+      // Only abort if neither interceptor succeeded — if the inline proxy is
+      // installed, ws-interceptor.js timeout is non-fatal (WebSocket frames
       // are already captured; only XHR polling fallback would be missed).
       if (debug) markFailed(4, 'timeout (3s)');
       warn('Interceptor failed to initialize within 3s — aborting');
       return;
     }
-    if (!interceptorReady && syncProxyInstalled) {
-      if (debug) markStep(4, 'ok', 'Firefox sync proxy active');
-      warn('ws-interceptor.js timed out — continuing with Firefox sync proxy (XHR fallback unavailable)');
+    if (!interceptorReady && inlineProxyInstalled) {
+      if (debug) markStep(4, 'ok', 'inline proxy active');
+      warn('ws-interceptor.js timed out — continuing with inline proxy (XHR fallback unavailable)');
     }
 
     // 5b. Detect unresponsive APEX — if no messages arrive within 5s, flag it
