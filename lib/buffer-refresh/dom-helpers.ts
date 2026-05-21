@@ -79,6 +79,42 @@ export function findBackNav(): HTMLElement | null {
 }
 
 /**
+ * Dump DOM state to the error log when back-navigation fails.
+ * Uses error() so output is visible even in production / mobile (no devtools).
+ */
+function logNavigationFailure(attempt: number): void {
+  const h2s = Array.from(document.querySelectorAll('h2'))
+    .map((h) => `"${h.textContent?.trim()}"`)
+    .join(', ') || 'none';
+
+  // First 8 direct children of #container (tag + truncated text).
+  const containerEl = document.getElementById('container');
+  const containerChildren = containerEl
+    ? Array.from(containerEl.children)
+        .slice(0, 8)
+        .map((c) => `<${c.tagName.toLowerCase()}>${(c.textContent ?? '').trim().slice(0, 40)}`)
+        .join(' | ')
+    : 'no #container';
+
+  // First 10 buttons anywhere in the body (text + aria-label).
+  const buttons = Array.from(document.querySelectorAll('button'))
+    .slice(0, 10)
+    .map((b) => {
+      const label = b.getAttribute('aria-label') ?? '';
+      const text = (b.textContent ?? '').trim().slice(0, 30);
+      return label ? `[${label}]` : `"${text}"`;
+    })
+    .join(', ') || 'none';
+
+  error(
+    `BufferRefresh: no back-nav (attempt ${attempt})` +
+      ` | all h2s: [${h2s}]` +
+      ` | #container children: [${containerChildren}]` +
+      ` | buttons: [${buttons}]`
+  );
+}
+
+/**
  * Navigate back to APEX's top-level stacks view by clicking breadcrumbs iteratively.
  *
  * Handles multi-level depth (e.g., PROD buffer → buffer list → stacks top level).
@@ -92,10 +128,7 @@ export async function navigateToStacksTopLevel(timeoutMs: number, maxAttempts: n
     if (isAtStacksTopLevel()) return true;
     const nav = findBackNav();
     if (!nav) {
-      const h2s = Array.from(document.querySelectorAll('#container h2'))
-        .map((h) => `"${h.textContent?.trim()}"`)
-        .join(', ');
-      error(`BufferRefresh: navigateToStacksTopLevel: no back-nav found (attempt ${i + 1}); #container h2s: [${h2s || 'none'}]`);
+      logNavigationFailure(i + 1);
       return false;
     }
     nav.click();
