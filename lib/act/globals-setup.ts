@@ -2,12 +2,18 @@
 // can use C, $, _$, _$$ without explicit imports — matching the refined-prun
 // global pattern declared in ambient.d.ts.
 //
-// Call setupActGlobals() once from content.tsx before any ActionRunner is created.
+// Call setupActGlobals() once before any ActionRunner is created.
+// Subsequent calls are no-ops.
 
 import { C, loadPrunCss } from './prun-css';
 import { selectWait, selectOne, selectAll } from './select-dom';
 
+let installed = false;
+
 export function setupActGlobals(): void {
+  if (installed) return;
+  installed = true;
+
   loadPrunCss();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
