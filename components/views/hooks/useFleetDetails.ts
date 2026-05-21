@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useShipsStore } from '../../../stores/entities/ships';
 import { useFlightsStore, getFlightByShipId } from '../../../stores/entities/flights';
 import { useStorageStore } from '../../../stores/entities/storage';
-import { getDestinationName, formatEta, getCurrentLocation } from '../../../lib/fleet-utils';
+import { getDestinationName, getCurrentLocation } from '../../../lib/fleet-utils';
 import { useTick } from '../../../lib/use-tick';
 import type { PrunApi } from '../../../types/prun-api';
 

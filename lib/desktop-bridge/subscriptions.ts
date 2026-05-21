@@ -18,7 +18,7 @@ import {
   deriveContractSummaries,
   deriveBalances,
   deriveScreens,
-  deriveBurnThresholds,
+
   deriveWarehouses,
   deriveSiteBurnSummaries,
 } from './store-serializer';

@@ -8,14 +8,14 @@
 import { useStorageStore } from '../stores/entities/storage';
 import { MATERIAL_CATEGORIES } from './material-categories';
 
-// Memoization state
-let cachedLastUpdated: number | null = null;
+// Memoization state (reserved for future use)
+let _cachedLastUpdated: number | null = null;
 let categoryIndex: Map<string, string> = new Map();
 
 /**
  * Rebuilds the ticker-to-category index from storage data.
  */
-function rebuildIndex(): void {
+function _rebuildIndex(): void {
   const stores = useStorageStore.getState().getAll();
   categoryIndex = new Map();
 
@@ -50,6 +50,6 @@ export function getMaterialCategory(ticker: string): string {
  * Call this on store clear/reconnect events.
  */
 export function clearMaterialCategoryCache(): void {
-  cachedLastUpdated = null;
+  _cachedLastUpdated = null;
   categoryIndex = new Map();
 }
