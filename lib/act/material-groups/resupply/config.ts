@@ -1,5 +1,9 @@
-// Minimal config type referenced by bill.ts.
-// Mirrors refined-prun's resupply MaterialFilter; full Resupply config
-// (editor/configure components, etc.) will be ported in a later stage.
+// Ported from refined-prun src/features/XIT/ACT/material-groups/resupply/config.ts.
 
 export type MaterialFilter = 'All' | 'Workforce' | 'Production';
+
+export interface Config {
+  planet: string;
+  days?: number;
+  materialFilter?: MaterialFilter;
+}

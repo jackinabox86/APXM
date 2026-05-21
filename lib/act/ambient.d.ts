@@ -1,21 +1,23 @@
 // Ambient declarations for refined-prun-style globals used by the ported
-// step-machine's execute-time DOM interaction. These are runtime concerns to
-// be wired up in a later stage — the rprun originals come from the bundled
-// APEX page (CSS module hash map `C` and jQuery-like `$`/`_$`/`_$$`).
+// action-step execute() functions. setupActGlobals() (lib/act/globals-setup.ts)
+// must be called before any step runs to populate these on window.
 
 declare const C: Record<string, Record<string, string>>;
 
-// Selector helpers used in execute-time DOM interaction. The exact rprun
-// signatures vary; these unions cover the call sites in the ported code.
-declare function $<T extends Element = HTMLElement>(
+// Async: waits up to ~10 s for the first matching element; resolves null on timeout.
+declare function $<T extends HTMLElement = HTMLElement>(
   root: Element | Document,
   selector: string,
-): Promise<T>;
-declare function _$<T extends Element = HTMLElement>(
+): Promise<T | null>;
+
+// Synchronous: returns first matching element or null.
+declare function _$<T extends HTMLElement = HTMLElement>(
   root: Element | Document,
   selector: string,
 ): T | null;
-declare function _$$<T extends Element = HTMLElement>(
+
+// Synchronous: returns all matching elements.
+declare function _$$<T extends HTMLElement = HTMLElement>(
   root: Element | Document,
   selector: string,
 ): T[];

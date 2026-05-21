@@ -177,6 +177,9 @@ export class StepMachine {
 
 async function waitActionFeedback(tile: PrunTile): Promise<string | undefined> {
   const overlay = await $(tile.anchor, C.ActionFeedback.overlay);
+  if (!overlay) {
+    return 'Action feedback overlay did not appear';
+  }
   await waitActionProgress(overlay);
   if (overlay.classList.contains(C.ActionConfirmationOverlay.container)) {
     const confirm = _$$(overlay, C.Button.btn)[1];

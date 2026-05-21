@@ -21,6 +21,7 @@ interface SettingsState {
   fio: FioConfig;
   materialTheme: MaterialTheme;
   rprunFeaturesDisabled: boolean;
+  noBuy: string[];
 }
 
 interface SettingsActions {
@@ -29,6 +30,7 @@ interface SettingsActions {
   setFioLastFetch: (timestamp: number) => void;
   setMaterialTheme: (theme: MaterialTheme) => void;
   setRprunFeaturesDisabled: (disabled: boolean) => void;
+  setNoBuy: (tickers: string[]) => void;
   reset: () => void;
 }
 
@@ -47,6 +49,7 @@ const initialState: SettingsState = {
   fio: DEFAULT_FIO_CONFIG,
   materialTheme: 'rprun',
   rprunFeaturesDisabled: false,
+  noBuy: [],
 };
 
 // Check if browser storage API is available
@@ -131,6 +134,8 @@ export const useSettingsStore = create<SettingsStore>()(
 
       setRprunFeaturesDisabled: (disabled) => set({ rprunFeaturesDisabled: disabled }),
 
+      setNoBuy: (tickers) => set({ noBuy: tickers }),
+
       reset: () => set(initialState),
     }),
     {
@@ -145,6 +150,7 @@ export const useSettingsStore = create<SettingsStore>()(
           ...state,
           burnThresholds: { ...current.burnThresholds, ...state?.burnThresholds },
           fio: { ...current.fio, ...state?.fio },
+          noBuy: state?.noBuy ?? current.noBuy,
         };
       },
       onRehydrateStorage: () => () => {

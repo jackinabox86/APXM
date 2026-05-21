@@ -3,6 +3,7 @@ import { FilterBar, type FilterOption, DataGate, type RequiredStore } from '../s
 import { SiteBurnCard } from '../burn/SiteBurnCard';
 import { useFilteredBurns, type BurnFilter } from './hooks';
 import { useSitesStore } from '../../stores/entities/sites';
+import { useGameState } from '../../stores/gameState';
 
 // UI label mapping: internal type → display
 const filterLabels: Record<BurnFilter, string> = {
@@ -20,6 +21,7 @@ const individualFilters: BurnFilter[] = ['critical', 'warning', 'ok'];
  * BURN tab content.
  */
 export function BasesView() {
+  const { setActiveTab, setActiveActPlanet } = useGameState();
   const [activeFilters, setActiveFilters] = useState<Set<BurnFilter>>(new Set(['all']));
   const { summaries, counts } = useFilteredBurns(activeFilters);
 
@@ -67,6 +69,22 @@ export function BasesView() {
   return (
     <DataGate requiredStores={requiredStores}>
       <div className="space-y-3">
+        {/* ACT navigation buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setActiveActPlanet(null); setActiveTab('burnact'); }}
+            className="flex-1 min-h-touch px-3 py-2 text-xs rounded border border-apxm-accent text-apxm-muted font-semibold hover:border-prun-yellow hover:text-prun-yellow"
+          >
+            BURNACT
+          </button>
+          <button
+            onClick={() => { setActiveActPlanet(null); setActiveTab('repairact'); }}
+            className="flex-1 min-h-touch px-3 py-2 text-xs rounded border border-apxm-accent text-apxm-muted font-semibold hover:border-prun-yellow hover:text-prun-yellow"
+          >
+            REPAIRACT
+          </button>
+        </div>
+
         <FilterBar options={filterOptions} activeFilters={activeFilters} onChange={handleFilterToggle} />
 
         {summaries.length === 0 ? (

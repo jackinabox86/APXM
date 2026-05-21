@@ -6,17 +6,20 @@ import { create } from 'zustand';
  * Entity data is in stores/entities/*.ts.
  */
 
-export type TabId = 'status' | 'fleet' | 'bases' | 'contracts' | 'settings';
+export type TabId = 'status' | 'fleet' | 'bases' | 'contracts' | 'settings' | 'burnact' | 'repairact';
 
 interface GameState {
   overlayVisible: boolean;
   debugMode: boolean;
   apexVisible: boolean;
   activeTab: TabId;
+  /** Planet natural-ID or name pre-selected when navigating to burnact/repairact. */
+  activeActPlanet: string | null;
   setOverlayVisible: (visible: boolean) => void;
   setDebugMode: (debug: boolean) => void;
   setApexVisible: (visible: boolean) => void;
   setActiveTab: (tab: TabId) => void;
+  setActiveActPlanet: (planet: string | null) => void;
 }
 
 export const useGameState = create<GameState>((set) => ({
@@ -24,8 +27,10 @@ export const useGameState = create<GameState>((set) => ({
   debugMode: false,
   apexVisible: false,
   activeTab: 'status',
+  activeActPlanet: null,
   setOverlayVisible: (overlayVisible) => set({ overlayVisible }),
   setDebugMode: (debugMode) => set({ debugMode }),
   setApexVisible: (apexVisible) => set({ apexVisible }),
   setActiveTab: (activeTab) => set({ activeTab }),
+  setActiveActPlanet: (activeActPlanet) => set({ activeActPlanet }),
 }));
