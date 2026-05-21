@@ -122,10 +122,11 @@ export function findMobileBackButton(): HTMLElement | null {
     }
   }
 
-  log(
-    'findMobileBackButton: not found — minimizeIdx:', minimizeIdx,
-    'closeIdx:', closeIdx,
-    'buttons:', buttons.slice(0, 8).map((b) => `"${(b.textContent ?? '').trim().slice(0, 20)}"`)
+  // Always-on: show why we couldn't find the button so we can tell whether
+  // the new build is loaded and what the actual button contents look like.
+  error(
+    `findMobileBackButton: not found | minimizeIdx: ${minimizeIdx} | closeIdx: ${closeIdx}` +
+    ` | first 8 buttons: ${buttons.slice(0, 8).map((b) => `"${(b.textContent ?? '').trim().slice(0, 20)}"`).join(', ')}`
   );
   return null;
 }
