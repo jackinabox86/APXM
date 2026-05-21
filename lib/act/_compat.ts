@@ -29,6 +29,7 @@ import {
 import { useWarehouseStore } from '../../stores/warehouses';
 import { useMaterialsStore } from '../../stores/entities/materials';
 import { useCxobStore } from '../../stores/cxob';
+import { warn } from '../debug/logger';
 
 export const sitesStore = {
   getByPlanetNaturalIdOrName(query: string | undefined): PrunApi.Site | undefined {
@@ -72,10 +73,69 @@ export const storagesStore = {
   },
 };
 
+// Derive the system natural ID from a CX exchange code, e.g. "AI1" → "AI".
+function deriveSystemCode(exchangeCode: string): string | undefined {
+  const m = exchangeCode.match(/^([A-Z]+)\d+$/);
+  return m ? m[1] : undefined;
+}
+
+// Multi-strategy CX warehouse lookup:
+//   1. Exact stationNaturalId match (exchange code == station entity naturalId)
+//   2. Cross-reference via WAREHOUSE_STORE.addressableId when storeId not in storage store
+//   3. System-code fallback (exchange "AI1" → systemNaturalId "AI")
+// Each strategy also tries to find the PrunApi.Store via addressableId if getById misses.
+function resolveWarehouseStore(exchangeCode: string): { storeId: string } | undefined {
+  const warehouseState = useWarehouseStore.getState();
+  const storageState = useStorageStore.getState();
+
+  function storeIdFromWarehouseId(warehouseId: string): string | undefined {
+    const wh = warehouseState.warehouses.find(w => w.warehouseId === warehouseId);
+    if (!wh) return undefined;
+    // If the storeId is already in the storage store, use it directly.
+    if (storageState.getById(wh.storeId)) return wh.storeId;
+    // If not (storage store hasn't received this warehouse's data yet), try to
+    // find a WAREHOUSE_STORE entry by addressableId — this handles the case
+    // where the storage arrived under a slightly different id/field.
+    const byAddr = storageState.getAll()
+      .find(s => s.type === 'WAREHOUSE_STORE' && s.addressableId === warehouseId);
+    if (byAddr) return byAddr.id;
+    // Return the recorded storeId anyway; the caller's storagesStore.getById()
+    // may still find it if the storage arrives later.
+    return wh.storeId;
+  }
+
+  // Strategy 1: stationNaturalId or systemNaturalId exact match
+  const loc = warehouseState.getByEntityNaturalId(exchangeCode);
+  if (loc) {
+    const sid = storeIdFromWarehouseId(loc.warehouseId);
+    if (sid) return { storeId: sid };
+  }
+
+  // Strategy 2: system-code fallback
+  const systemCode = deriveSystemCode(exchangeCode);
+  if (systemCode) {
+    const bySystem = warehouseState.getBySystem(systemCode);
+    if (bySystem) {
+      const sid = storeIdFromWarehouseId(bySystem.warehouseId);
+      if (sid) {
+        warn(`_compat: warehouse for '${exchangeCode}' matched by system '${systemCode}' — may be ambiguous if you have warehouses at two ${systemCode} exchanges`);
+        return { storeId: sid };
+      }
+    }
+  }
+
+  // Nothing found — log diagnostics so the failure mode is visible in DevTools
+  const snapshot = warehouseState.warehouses.map(w =>
+    `[${w.warehouseId.slice(0, 8)} sys=${w.systemNaturalId} sta=${w.stationNaturalId ?? 'null'} storeId=${w.storeId.slice(0, 8)}]`
+  ).join(', ');
+  warn(`_compat: CX warehouse not found for '${exchangeCode}'. Warehouses in store: ${snapshot || '(empty)'}`);
+  return undefined;
+}
+
 export const warehousesStore = {
   getByEntityNaturalId(naturalId: string | undefined): { storeId: string } | undefined {
     if (!naturalId) return undefined;
-    return useWarehouseStore.getState().getByEntityNaturalId(naturalId);
+    return resolveWarehouseStore(naturalId);
   },
 };
 

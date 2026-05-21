@@ -484,7 +484,8 @@ export function initMessageHandlers(): void {
 
   function extractWarehouse(wh: Record<string, unknown>): WarehouseLocation | null {
     const warehouseId = wh.warehouseId as string | undefined;
-    const storeId = wh.storeId as string | undefined;
+    // Game uses "storeId" but some messages may use "storageId"
+    const storeId = (wh.storeId ?? wh.storageId) as string | undefined;
     const address = wh.address as { lines?: Array<{ type?: string; entity?: { naturalId?: string } }> } | undefined;
     if (typeof warehouseId !== 'string' || typeof storeId !== 'string') return null;
     const systemLine = address?.lines?.find((l) => l.type === 'SYSTEM');
@@ -496,17 +497,37 @@ export function initMessageHandlers(): void {
     return { warehouseId, storeId, systemNaturalId, stationNaturalId };
   }
 
+  // Extract an embedded PrunApi.Store object from a warehouse message entry if present.
+  // Some game messages include the full storage object inside the warehouse envelope so
+  // that WAREHOUSE_STORAGES is self-contained (no separate STORAGE_STORAGES needed for
+  // warehouse inventory). We push it into useStorageStore so the rest of the codebase
+  // (storagesStore.getById) can find it.
+  function extractEmbeddedStore(wh: Record<string, unknown>): PrunApi.Store | null {
+    const s = (wh.store ?? wh.storage) as Record<string, unknown> | undefined;
+    if (!s || typeof s !== 'object') return null;
+    const id = s.id as string | undefined;
+    const type = s.type as string | undefined;
+    if (typeof id !== 'string' || typeof type !== 'string') return null;
+    return s as unknown as PrunApi.Store;
+  }
+
   typeHandlers.set('WAREHOUSE_STORAGES', (msg: ProcessedMessage) => {
     const payload = extractPayload(msg) as { storages?: unknown[] };
     if (Array.isArray(payload?.storages)) {
       const locations: WarehouseLocation[] = [];
+      const embeddedStores: PrunApi.Store[] = [];
       for (const wh of payload.storages) {
         if (wh && typeof wh === 'object') {
           const loc = extractWarehouse(wh as Record<string, unknown>);
           if (loc) locations.push(loc);
+          const embedded = extractEmbeddedStore(wh as Record<string, unknown>);
+          if (embedded) embeddedStores.push(embedded);
         }
       }
       useWarehouseStore.getState().setWarehouses(locations);
+      if (embeddedStores.length > 0) {
+        useStorageStore.getState().setMany(embeddedStores);
+      }
     } else {
       warn('WAREHOUSE_STORAGES: unexpected payload structure', payload);
     }
@@ -518,6 +539,8 @@ export function initMessageHandlers(): void {
       const loc = extractWarehouse(payload);
       if (loc) {
         useWarehouseStore.getState().addWarehouse(loc);
+        const embedded = extractEmbeddedStore(payload);
+        if (embedded) useStorageStore.getState().setOne(embedded);
         return;
       }
     }
