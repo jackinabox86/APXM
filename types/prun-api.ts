@@ -592,9 +592,17 @@ export namespace PrunApi {
   // Alert Types
   // ============================================================================
 
+  export interface AlertDataEntity {
+    id: string;
+    name?: string;
+    code?: string;
+    _type?: string;
+    _proxy_key?: string;
+  }
+
   export interface AlertData {
     key: string;
-    value: string;
+    value: string | AlertDataEntity;
   }
 
   export type AlertType =
