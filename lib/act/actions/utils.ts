@@ -1,11 +1,10 @@
 // Ported from refined-prun src/features/XIT/ACT/actions/utils.ts.
-// Import paths and store calls adapted for APXM. warehousesStore full-address
-// lookup is not yet available in APXM; warehouse deserialization is stubbed
-// to return undefined (BURNACT/REPAIRACT only use STORE and SHIP_STORE types).
+// Import paths and store calls adapted for APXM.
 
 import type { PrunApi } from '../../../types/prun-api';
 import { useSitesStore } from '../../../stores/entities/sites';
 import { useShipsStore } from '../../../stores/entities/ships';
+import { useWarehouseStore } from '../../../stores/warehouses';
 import { storagesStore, sitesStore } from '../_compat';
 import { getEntityDisplayName } from '../../address';
 
@@ -31,7 +30,10 @@ export function serializeStorage(storage: PrunApi.Store): string {
       return label + ' Base';
     }
     case 'WAREHOUSE_STORE': {
-      const label = storage.name ?? storage.addressableId;
+      const wh = useWarehouseStore.getState().warehouses.find(
+        (w) => w.warehouseId === storage.addressableId,
+      );
+      const label = wh?.stationNaturalId ?? wh?.systemNaturalId ?? storage.name ?? storage.addressableId;
       return label + ' Warehouse';
     }
     default:
@@ -58,10 +60,11 @@ export function deserializeStorage(serializedName: string | undefined): PrunApi.
     return storagesStore.getByAddressableId(site?.siteId).find((x) => x.type === 'STORE');
   }
 
-  // Warehouse lookup requires a warehousesStore not yet in APXM; return undefined.
   name = extractName(serializedName, 'Warehouse');
   if (name) {
-    return undefined;
+    const wh = useWarehouseStore.getState().getByEntityNaturalId(name);
+    if (!wh) return undefined;
+    return storagesStore.getByAddressableId(wh.warehouseId).find((s) => s.type === 'WAREHOUSE_STORE');
   }
 
   name = extractName(serializedName, 'Cargo');
@@ -92,9 +95,18 @@ function getStoreAddress(store: PrunApi.Store): PrunApi.Address | undefined {
       const site = useSitesStore.getState().getById(store.addressableId);
       return site?.address;
     }
-    case 'WAREHOUSE_STORE':
-      // warehousesStore not yet in APXM
-      return undefined;
+    case 'WAREHOUSE_STORE': {
+      const wh = useWarehouseStore.getState().warehouses.find(
+        (w) => w.warehouseId === store.addressableId,
+      );
+      if (!wh) return undefined;
+      const naturalId = wh.stationNaturalId ?? wh.systemNaturalId;
+      if (!naturalId) return undefined;
+      const lineType = wh.stationNaturalId ? 'STATION' : 'SYSTEM';
+      return {
+        lines: [{ type: lineType, entity: { id: naturalId, naturalId, name: naturalId } }],
+      } as PrunApi.Address;
+    }
     case 'SHIP_STORE':
     case 'STL_FUEL_STORE':
     case 'FTL_FUEL_STORE': {
