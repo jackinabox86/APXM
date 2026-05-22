@@ -6,6 +6,8 @@ import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSitesStore } from '../../stores/entities/sites';
 import { useStorageStore } from '../../stores/entities/storage';
 import { useShipsStore } from '../../stores/entities/ships';
+import { useWarehouseStore } from '../../stores/warehouses';
+import { useExchangeStore } from '../../stores/exchanges';
 import { useGameState } from '../../stores/gameState';
 import { getEntityDisplayName } from '../../lib/address';
 import { serializeStorage, atSameLocation } from '../../lib/act/actions/utils';
@@ -18,6 +20,9 @@ import { configurableValue } from '../../lib/act/shared-types';
 import type { ActionPackageConfig } from '../../lib/act/shared-types';
 
 const EXCHANGES = ['AI1', 'CI1', 'CI2', 'IC1', 'NC1', 'NC2'] as const;
+
+// Static exchange-code → CX station naturalId fallback (mirrors _compat.ts).
+const CX_STATION_IDS: Record<string, string> = { AI1: 'ANT', CI1: 'BEN', NC1: 'MOR', IC1: 'HRT' };
 
 const INPUT_CLS =
   'w-full min-h-touch px-3 py-2 text-sm bg-apxm-bg border border-apxm-accent rounded ' +
@@ -43,11 +48,13 @@ export function BurnActView() {
   const sitesLastUpdated = useSitesStore((s) => s.lastUpdated);
   const storagesLastUpdated = useStorageStore((s) => s.lastUpdated);
   const shipsLastUpdated = useShipsStore((s) => s.lastUpdated);
+  const warehousesCount = useWarehouseStore((s) => s.warehouses.length);
+  const exchangesCount = useExchangeStore((s) => s.exchanges.length);
 
   // Form state
   const [planet, setPlanet] = useState(activeActPlanet ?? '');
   const [days, setDays] = useState('30');
-  const [exchange, setExchange] = useState('CI1');
+  const [exchange, setExchange] = useState('AI1');
   const [origin, setOrigin] = useState('');
   const [dest, setDest] = useState('');
 
@@ -96,28 +103,64 @@ export function BurnActView() {
     [sitesLastUpdated],
   );
 
-  // All storages eligible for MTRA: bases, ship cargo, CX warehouses.
+  // Resolve the warehouseId for the currently selected exchange.
+  const exchangeWhId = useMemo(() => {
+    const naturalId = useExchangeStore.getState().getNaturalIdFromCode(exchange) ?? CX_STATION_IDS[exchange];
+    if (!naturalId) return undefined;
+    return useWarehouseStore.getState().getByEntityNaturalId(naturalId)?.warehouseId;
+  }, [exchange, warehousesCount, exchangesCount]);
+
+  // Build ordered storage options: exchange CX warehouse → bases → other warehouses → ships.
   const storageOptions = useMemo(() => {
-    return useStorageStore.getState().getAll()
-      .filter(s => s.type === 'STORE' || s.type === 'SHIP_STORE' || s.type === 'WAREHOUSE_STORE')
-      .map(s => ({ value: serializeStorage(s), storage: s }))
-      .sort((a, b) => a.value.localeCompare(b.value));
-  }, [storagesLastUpdated, sitesLastUpdated, shipsLastUpdated]);
+    const all = useStorageStore.getState().getAll()
+      .filter((s) => s.type === 'STORE' || s.type === 'SHIP_STORE' || s.type === 'WAREHOUSE_STORE');
+
+    const toOpts = (arr: typeof all) =>
+      arr.map((s) => ({ value: serializeStorage(s), storage: s }))
+         .sort((a, b) => a.value.localeCompare(b.value));
+
+    const exchangeWh  = all.filter((s) => s.type === 'WAREHOUSE_STORE' && s.addressableId === exchangeWhId);
+    const bases       = all.filter((s) => s.type === 'STORE');
+    const otherWh     = all.filter((s) => s.type === 'WAREHOUSE_STORE' && s.addressableId !== exchangeWhId);
+    const ships       = all.filter((s) => s.type === 'SHIP_STORE');
+
+    return [...toOpts(exchangeWh), ...toOpts(bases), ...toOpts(otherWh), ...toOpts(ships)];
+  }, [exchangeWhId, storagesLastUpdated, sitesLastUpdated, shipsLastUpdated, warehousesCount]);
 
   const originStorage = useMemo(
-    () => storageOptions.find(o => o.value === origin)?.storage ?? null,
+    () => storageOptions.find((o) => o.value === origin)?.storage ?? null,
     [origin, storageOptions],
   );
 
-  // Destination options filtered to same location as origin (using refined-prun logic).
+  // Destination options: same-location filter applied to the already-ordered storageOptions,
+  // so the category order (exchange wh → bases → other wh → ships) is preserved.
   const destOptions = useMemo(() => {
     if (!originStorage) return [];
-    return storageOptions.filter(o => atSameLocation(originStorage, o.storage));
+    return storageOptions.filter((o) => atSameLocation(originStorage, o.storage));
   }, [originStorage, storageOptions]);
+
+  // When exchange changes, auto-select its CX warehouse as origin (or clear if none).
+  useEffect(() => {
+    const label = storageOptions.find(
+      (o) => o.storage.type === 'WAREHOUSE_STORE' && o.storage.addressableId === exchangeWhId,
+    )?.value ?? '';
+    setOrigin(label);
+    setDest('');
+  }, [exchange]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // If origin is still empty when the exchange warehouse first becomes available
+  // (e.g. storages loaded from cache after mount), fill it in.
+  useEffect(() => {
+    if (origin !== '') return;
+    const label = storageOptions.find(
+      (o) => o.storage.type === 'WAREHOUSE_STORE' && o.storage.addressableId === exchangeWhId,
+    )?.value;
+    if (label) setOrigin(label);
+  }, [exchangeWhId, storageOptions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset destination when origin changes or it no longer appears in destOptions.
   useEffect(() => {
-    if (!origin || !destOptions.find(o => o.value === dest)) {
+    if (!origin || !destOptions.find((o) => o.value === dest)) {
       setDest('');
     }
   }, [origin, destOptions]);
