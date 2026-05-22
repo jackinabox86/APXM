@@ -157,13 +157,23 @@ export const warehousesStore = {
   },
 };
 
+// Static mapping of CX exchange codes to their station entity naturalIds.
+// These are fundamental game constants — the 4 commodity exchanges in PrUn.
+const CX_STATION_NATURAL_IDS: Record<string, string> = {
+  AI1: 'ANT',  // Antares Industrial Exchange
+  CI1: 'BEN',  // Benten Commodity Exchange
+  NC1: 'MOR',  // Moria Transit Exchange
+  IC1: 'HRT',  // Hort Trade Center
+};
+
 export const exchangesStore = {
   getNaturalIdFromCode(code: string | undefined): string | undefined {
     if (!code) return undefined;
-    // Map exchange code (e.g. "AI1") → station entity naturalId (e.g. "ANT").
-    // Falls back to the code itself so callers don't crash when the exchange
-    // store hasn't been populated yet (COMEX_BROKER_DATA hasn't arrived).
-    return useExchangeStore.getState().getNaturalIdFromCode(code) ?? code;
+    // Dynamic store (populated from COMEX_BROKER_DATA when a CX buffer is opened)
+    // takes priority; static map is the reliable fallback for login-time lookups.
+    return useExchangeStore.getState().getNaturalIdFromCode(code)
+      ?? CX_STATION_NATURAL_IDS[code]
+      ?? code;
   },
 };
 
