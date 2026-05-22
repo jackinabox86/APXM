@@ -26,7 +26,10 @@ export type InboundMessageType =
   | 'WAREHOUSE_STORAGE'
   | 'WAREHOUSE_STORAGE_REMOVED'
   | 'WORLD_MATERIAL_CATEGORIES'
-  | 'WORLD_BUILDING_CATEGORIES';
+  | 'WORLD_BUILDING_CATEGORIES'
+  | 'ALERTS_ALERTS'
+  | 'ALERTS_ALERT'
+  | 'ALERTS_ALERTS_DELETED';
 
 /** Common outbound message types */
 export type OutboundMessageType =

@@ -588,6 +588,59 @@ export namespace PrunApi {
     currencyBalance: CurrencyAmount;
   }
 
+  // ============================================================================
+  // Alert Types
+  // ============================================================================
+
+  export interface AlertDataEntity {
+    id: string;
+    name?: string;
+    code?: string;
+    _type?: string;
+    _proxy_key?: string;
+  }
+
+  export interface AlertData {
+    key: string;
+    value: string | AlertDataEntity;
+  }
+
+  export type AlertType =
+    | 'PRODUCTION_ORDER_FINISHED'
+    | 'SHIP_FLIGHT_ENDED'
+    | 'COMEX_ORDER_FILLED'
+    | 'COMEX_ORDER_PARTIALLY_FILLED'
+    | 'COMEX_ORDER_EXPIRED'
+    | 'WAREHOUSE_STORE_LOCKED_INSUFFICIENT_FUNDS'
+    | 'WORKFORCE_LOW_SUPPLIES'
+    | 'CONTRACT_RECEIVED'
+    | 'CONTRACT_ACCEPTED'
+    | 'CONTRACT_REJECTED'
+    | 'CONTRACT_PARTNER_CANCELLED'
+    | 'CONTRACT_CLOSED'
+    | 'CONTRACT_DEADLINE_EXCEEDED'
+    | 'CONTRACT_BREACHED'
+    | 'CONTRACT_TERMINATED'
+    | 'CONTRACT_TERMINATION_REQUEST'
+    | 'LOCAL_RULE_VOTE_STARTED'
+    | 'LOCAL_RULE_VOTE_ENDED'
+    | 'COGC_PROGRAM_STARTED'
+    | 'COGC_PROGRAM_ENDED'
+    | 'COGC_VOTE_STARTED'
+    | 'COGC_VOTE_ENDED'
+    | string;
+
+  export interface Alert {
+    id: string;
+    type: AlertType;
+    contextId: string;
+    naturalId: string;
+    time: DateTime;
+    data: AlertData[];
+    seen: boolean;
+    read: boolean;
+  }
+
   export interface BookingItem {
     accountCategory: string;
     accountType: number;

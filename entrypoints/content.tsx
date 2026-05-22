@@ -20,6 +20,7 @@ import { initApxmButton } from '../lib/apxm-button';
 import { initRprunDetection } from '../lib/rprun-detect';
 import { useSitesStore } from '../stores/entities';
 import { useSiteSourceStore } from '../stores/site-data-sources';
+import { useAlertsStore } from '../stores/entities';
 import '../assets/styles.css';
 
 export default defineContentScript({
@@ -286,6 +287,13 @@ export default defineContentScript({
       markStep(7, 'ok');
       ensureDiagnosticsVisible();
     }
+
+    // Expose a read-only debug handle for console inspection.
+    // Usage: window.apxm.alerts.getAll()
+    //        window.apxm.alerts.getAll().filter(a => !a.seen)
+    (window as unknown as Record<string, unknown>).apxm = {
+      alerts: useAlertsStore,
+    };
 
     // 8. Initialize buffer refresh mode from URL param
     initRefreshMode();
