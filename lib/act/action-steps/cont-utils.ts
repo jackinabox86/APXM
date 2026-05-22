@@ -41,9 +41,12 @@ export async function selectMaterial(container: Element, ticker: string, searchN
   )) as HTMLElement | null;
   console.log('[selectMaterial] suggestionsContainer found:', !!suggestionsContainer);
 
-  focusElement(input);
-  await sleep(50);
-  console.log('[selectMaterial] activeElement after focus:', document.activeElement?.className?.slice(0, 60));
+  // Click the input rather than just focus — APEX's MaterialSelector transitions
+  // to "active" state (showing suggestions) on click, not on programmatic focus.
+  await clickElement(input);
+  await sleep(100);
+  console.log('[selectMaterial] container class after click:', (container as HTMLElement).className?.slice(0, 120));
+  console.log('[selectMaterial] activeElement after click:', document.activeElement?.className?.slice(0, 60));
   setInputValue(input, searchName);
   input.dispatchEvent(new Event('change', { bubbles: true }));
   console.log('[selectMaterial] input.value after set:', input.value);
