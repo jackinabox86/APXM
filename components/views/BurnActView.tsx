@@ -303,7 +303,7 @@ export function BurnActView() {
 
         {/* MTRA origin — "CX Buy only" at bottom opts out of transfer */}
         <div className="space-y-1">
-          <label className={LABEL_CLS}>MTRA Origin <span className="normal-case opacity-60">(-CX BUY ONLY- = skip MTRA)</span></label>
+          <label className={LABEL_CLS}>MTRA Origin <span className="normal-case">(CX BUY ONLY = SKIP MTRA)</span></label>
           <select
             value={origin}
             onChange={(e) => { setOrigin(e.target.value); setDest(''); }}
