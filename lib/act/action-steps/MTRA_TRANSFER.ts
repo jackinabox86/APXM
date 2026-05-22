@@ -14,7 +14,7 @@ import { fixed0, clickElement, waitUntil } from '../_compat';
 import { setInputValue } from '../../buffer-refresh/dom-helpers';
 import { storagesStore, materialsStore } from '../_compat';
 import type { AssertFn } from '../shared-types';
-import { selectMaterial } from './cont-utils';
+import { selectMaterial, toDisplayName } from './cont-utils';
 
 interface Data {
   from: string;
