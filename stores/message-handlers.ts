@@ -18,6 +18,9 @@ import { useSiteSourceStore } from './site-data-sources';
 import { useScreensStore, type ScreenInfo } from './screens';
 import { useCompanyStore } from './company';
 import { useWarehouseStore, type WarehouseLocation } from './warehouses';
+import { useMaterialsStore } from './entities/materials';
+import { useCxobStore } from './cxob';
+import { useExchangeStore } from './exchanges';
 
 type MessageHandler = (msg: ProcessedMessage) => void;
 const typeHandlers = new Map<string, MessageHandler>();
@@ -95,6 +98,7 @@ export function initMessageHandlers(): void {
     if (reconnectCount > 0) {
       clearAllEntityStores();
       useSiteSourceStore.getState().clear();
+      useExchangeStore.getState().clear();
     }
     useConnectionStore.getState().incrementReconnectCount();
     useConnectionStore.getState().setConnected(true);
@@ -157,6 +161,12 @@ export function initMessageHandlers(): void {
   typeHandlers.set('STORAGE_STORAGES', (msg: ProcessedMessage) => {
     const payload = extractPayload(msg) as { stores?: PrunApi.Store[] };
     if (Array.isArray(payload?.stores)) {
+      // Log type distribution — tells us whether WAREHOUSE_STORE entries arrive here.
+      const typeCounts = payload.stores.reduce((acc: Record<string, number>, s) => {
+        acc[s.type] = (acc[s.type] ?? 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('[APXM] STORAGE_STORAGES:', payload.stores.length, 'stores, types:', JSON.stringify(typeCounts));
       useStorageStore.getState().setAll(payload.stores);
       useStorageStore.getState().setFetched('websocket');
     } else {
@@ -482,9 +492,23 @@ export function initMessageHandlers(): void {
 
   function extractWarehouse(wh: Record<string, unknown>): WarehouseLocation | null {
     const warehouseId = wh.warehouseId as string | undefined;
-    const storeId = wh.storeId as string | undefined;
+    if (typeof warehouseId !== 'string') return null;
+
+    // storeId may live at the top level ("storeId"/"storageId"), or be embedded
+    // inside a "store"/"storage" sub-object, or be absent entirely when the game
+    // sends the inventory data separately in STORAGE_STORAGES.  Use "" as a
+    // sentinel — _compat's storeIdFromWarehouseId will derive the real id via
+    // addressableId cross-reference and won't return the empty string to callers.
+    const embeddedStoreObj = (wh.store ?? wh.storage) as Record<string, unknown> | undefined;
+    // wh.id is a fallback for when the WAREHOUSE_STORAGES entry is itself a Store
+    // object (the game may fold both warehouse and store data into one wire object).
+    // Only use it if it differs from warehouseId — same UUID means it's the warehouse id.
+    const whId = typeof wh.id === 'string' && wh.id !== warehouseId ? wh.id : undefined;
+    const storeId = (
+      (wh.storeId ?? wh.storageId ?? embeddedStoreObj?.id ?? whId ?? '') as string
+    );
+
     const address = wh.address as { lines?: Array<{ type?: string; entity?: { naturalId?: string } }> } | undefined;
-    if (typeof warehouseId !== 'string' || typeof storeId !== 'string') return null;
     const systemLine = address?.lines?.find((l) => l.type === 'SYSTEM');
     const systemNaturalId = systemLine?.entity?.naturalId;
     if (typeof systemNaturalId !== 'string') return null;
@@ -494,19 +518,63 @@ export function initMessageHandlers(): void {
     return { warehouseId, storeId, systemNaturalId, stationNaturalId };
   }
 
+  // Extract an embedded PrunApi.Store object from a warehouse message entry if present.
+  // Some game messages include the full storage object inside the warehouse envelope so
+  // that WAREHOUSE_STORAGES is self-contained (no separate STORAGE_STORAGES needed for
+  // warehouse inventory). We push it into useStorageStore so the rest of the codebase
+  // (storagesStore.getById) can find it.
+  function extractEmbeddedStore(wh: Record<string, unknown>): PrunApi.Store | null {
+    // Case 1: store data in a nested "store"/"storage" sub-object.
+    const s = (wh.store ?? wh.storage) as Record<string, unknown> | undefined;
+    if (s && typeof s === 'object') {
+      const id = s.id as string | undefined;
+      const type = s.type as string | undefined;
+      if (typeof id === 'string' && typeof type === 'string') {
+        return s as unknown as PrunApi.Store;
+      }
+    }
+    // Case 2: the WAREHOUSE_STORAGES entry is itself a Store object. The game
+    // may fold both warehouse and store fields into one wire object — identified
+    // by a top-level "items" array (inventory) alongside "warehouseId".
+    const id = wh.id as string | undefined;
+    const type = wh.type as string | undefined;
+    if (typeof id === 'string' && typeof type === 'string' && Array.isArray(wh.items)) {
+      return wh as unknown as PrunApi.Store;
+    }
+    return null;
+  }
+
   typeHandlers.set('WAREHOUSE_STORAGES', (msg: ProcessedMessage) => {
-    const payload = extractPayload(msg) as { storages?: unknown[] };
-    if (Array.isArray(payload?.storages)) {
+    const payload = extractPayload(msg) as Record<string, unknown> | null;
+    // Game may use "storages" or "warehouses" as the array field name.
+    const raw = payload?.storages ?? payload?.warehouses;
+    const arr = Array.isArray(raw) ? (raw as unknown[]) : null;
+    if (arr) {
       const locations: WarehouseLocation[] = [];
-      for (const wh of payload.storages) {
+      const embeddedStores: PrunApi.Store[] = [];
+      let parseFailures = 0;
+      for (const wh of arr) {
         if (wh && typeof wh === 'object') {
           const loc = extractWarehouse(wh as Record<string, unknown>);
           if (loc) locations.push(loc);
+          else parseFailures++;
+          const embedded = extractEmbeddedStore(wh as Record<string, unknown>);
+          if (embedded) embeddedStores.push(embedded);
         }
       }
+      // Always log — warehouse lookup failures are silent otherwise.
+      console.log(
+        `[APXM] WAREHOUSE_STORAGES: ${arr.length} entries → ${locations.length} locations, ` +
+        `${embeddedStores.length} embedded stores` +
+        (parseFailures > 0 ? `, ${parseFailures} parse failures` : ''),
+      );
       useWarehouseStore.getState().setWarehouses(locations);
+      if (embeddedStores.length > 0) {
+        useStorageStore.getState().setMany(embeddedStores);
+      }
     } else {
-      warn('WAREHOUSE_STORAGES: unexpected payload structure', payload);
+      // Always visible so we can diagnose missing warehouse data without ?apxm_debug.
+      console.warn('[APXM] WAREHOUSE_STORAGES: unexpected payload structure', payload);
     }
   });
 
@@ -516,6 +584,8 @@ export function initMessageHandlers(): void {
       const loc = extractWarehouse(payload);
       if (loc) {
         useWarehouseStore.getState().addWarehouse(loc);
+        const embedded = extractEmbeddedStore(payload);
+        if (embedded) useStorageStore.getState().setOne(embedded);
         return;
       }
     }
@@ -569,5 +639,114 @@ export function initMessageHandlers(): void {
     if (typeof payload?.id === 'string') {
       useScreensStore.getState().removeScreen(payload.id);
     }
+  });
+
+  // ============================================================================
+  // World Data — materials and building categories
+  // ============================================================================
+
+  typeHandlers.set('WORLD_MATERIAL_CATEGORIES', (msg: ProcessedMessage) => {
+    const payload = extractPayload(msg) as { categories?: unknown[] };
+    if (!Array.isArray(payload?.categories)) {
+      warn('WORLD_MATERIAL_CATEGORIES: unexpected payload structure', payload);
+      return;
+    }
+    const categories: PrunApi.MaterialCategory[] = [];
+    for (const cat of payload.categories) {
+      if (!cat || typeof cat !== 'object') continue;
+      const c = cat as Record<string, unknown>;
+      if (typeof c.id !== 'string' || typeof c.name !== 'string' || !Array.isArray(c.materials)) {
+        continue;
+      }
+      const materials: PrunApi.Material[] = [];
+      for (const m of c.materials as unknown[]) {
+        if (!m || typeof m !== 'object') continue;
+        const mat = m as Record<string, unknown>;
+        if (
+          typeof mat.ticker === 'string' &&
+          typeof mat.name === 'string' &&
+          typeof mat.id === 'string' &&
+          typeof mat.weight === 'number' &&
+          typeof mat.volume === 'number'
+        ) {
+          materials.push({
+            id: mat.id as string,
+            name: mat.name as string,
+            ticker: mat.ticker as string,
+            category: typeof mat.category === 'string' ? mat.category : c.name as string,
+            weight: mat.weight as number,
+            volume: mat.volume as number,
+            resource: typeof mat.resource === 'boolean' ? mat.resource : false,
+          });
+        }
+      }
+      categories.push({ id: c.id as string, name: c.name as string, materials });
+    }
+    useMaterialsStore.getState().setFromCategories(categories);
+  });
+
+  // ============================================================================
+  // Commodity Exchange — order book data
+  // ============================================================================
+
+  typeHandlers.set('COMEX_BROKER_DATA', (msg: ProcessedMessage) => {
+    const payload = extractPayload(msg) as Record<string, unknown> | null;
+    if (!payload || typeof payload !== 'object') {
+      warn('COMEX_BROKER_DATA: unexpected payload structure', payload);
+      return;
+    }
+
+    // payload.ticker is the full CX ticker "WAI.AI1" — use it directly as the key.
+    // payload.material.ticker is only the material part "WAI"; combining with
+    // exchangeCode was the old (wrong) approach that produced "WAI.AI1.AI1".
+    const cxTicker = typeof payload.ticker === 'string' ? payload.ticker : undefined;
+
+    // Resolve exchange code from the exchange sub-object or top-level field.
+    let exchangeCode: string | undefined;
+    if (typeof payload.exchangeCode === 'string') {
+      exchangeCode = payload.exchangeCode;
+    } else if (payload.exchange && typeof payload.exchange === 'object') {
+      const ex = payload.exchange as Record<string, unknown>;
+      if (typeof ex.code === 'string') exchangeCode = ex.code;
+    }
+    // Fallback: derive exchange code from the CX ticker after the last dot.
+    if (!exchangeCode && cxTicker) {
+      const dot = cxTicker.lastIndexOf('.');
+      if (dot > 0) exchangeCode = cxTicker.slice(dot + 1);
+    }
+
+    if (!cxTicker || !exchangeCode) {
+      warn('COMEX_BROKER_DATA: could not parse ticker/exchange', payload);
+      return;
+    }
+
+    // Extract station naturalId from the address lines and populate the
+    // dynamic exchange store (code→naturalId). The exchange object itself
+    // has no naturalId field, but the address always has a STATION line.
+    const address = payload.address as { lines?: Array<{ type?: string; entity?: { naturalId?: string } }> } | undefined;
+    const stationLine = address?.lines?.find(l => l.type === 'STATION');
+    const stationNaturalId = stationLine?.entity?.naturalId;
+    if (stationNaturalId) {
+      useExchangeStore.getState().setExchange(exchangeCode, stationNaturalId);
+    }
+
+    function parseOrders(raw: unknown): PrunApi.CXOrder[] {
+      if (!Array.isArray(raw)) return [];
+      return raw.flatMap((o) => {
+        if (!o || typeof o !== 'object') return [];
+        const order = o as Record<string, unknown>;
+        const limit = order.limit as Record<string, unknown> | undefined;
+        const limitAmount = typeof limit?.amount === 'number' ? limit.amount : undefined;
+        if (limitAmount === undefined) return [];
+        const rawAmount = order.amount ?? order.itemCount ?? null;
+        const amount = typeof rawAmount === 'number' ? rawAmount : null;
+        return [{ amount, limit: { amount: limitAmount } }];
+      });
+    }
+
+    useCxobStore.getState().setOrderBook(cxTicker, {
+      sellingOrders: parseOrders(payload.sellingOrders),
+      buyingOrders: parseOrders(payload.buyingOrders),
+    });
   });
 }

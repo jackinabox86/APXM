@@ -26,6 +26,11 @@ import {
   calculateWorkforceConsumption,
   getInventoryFromStores,
 } from '../../core/burn';
+import { useWarehouseStore } from '../../stores/warehouses';
+import { useExchangeStore } from '../../stores/exchanges';
+import { useMaterialsStore } from '../../stores/entities/materials';
+import { useCxobStore } from '../../stores/cxob';
+import { warn } from '../debug/logger';
 
 export const sitesStore = {
   getByPlanetNaturalIdOrName(query: string | undefined): PrunApi.Site | undefined {
@@ -69,40 +74,121 @@ export const storagesStore = {
   },
 };
 
-// APXM does not yet have warehouses/exchanges entity stores. Stub to safe
-// empties so generateState() in step-generator still works (it will produce
-// an empty WAR map, which downstream logic tolerates).
-export const warehousesStore = {
-  getByEntityNaturalId(_naturalId: string | undefined): { storeId: string } | undefined {
+// Derive the system natural ID from a CX exchange code, e.g. "AI1" → "AI".
+function deriveSystemCode(exchangeCode: string): string | undefined {
+  const m = exchangeCode.match(/^([A-Z]+)\d+$/);
+  return m ? m[1] : undefined;
+}
+
+// Multi-strategy CX warehouse lookup:
+//   1. Exact stationNaturalId match (exchange code == station entity naturalId)
+//   2. Cross-reference via WAREHOUSE_STORE.addressableId when storeId not in storage store
+//   3. System-code fallback (exchange "AI1" → systemNaturalId "AI")
+// Each strategy also tries to find the PrunApi.Store via addressableId if getById misses.
+function resolveWarehouseStore(exchangeCode: string): { storeId: string } | undefined {
+  const warehouseState = useWarehouseStore.getState();
+  const storageState = useStorageStore.getState();
+
+  function storeIdFromWarehouseId(warehouseId: string): string | undefined {
+    const wh = warehouseState.warehouses.find(w => w.warehouseId === warehouseId);
+    if (!wh) return undefined;
+    // Primary: cross-reference via addressableId === warehouseId. Per rprun,
+    // Store.addressableId for a CX warehouse always points to the warehouse
+    // entity itself, so this match is authoritative regardless of how storeId
+    // was parsed from the original message.
+    const byAddr = storageState.getAll()
+      .find(s => s.type === 'WAREHOUSE_STORE' && s.addressableId === warehouseId);
+    if (byAddr) return byAddr.id;
+    // Secondary: the recorded storeId if it's already present in the storage store.
+    // Treat "" as a sentinel (extractWarehouse fell back to empty — no top-level field).
+    if (wh.storeId && storageState.getById(wh.storeId)) return wh.storeId;
+    // Both strategies failed — the Store is not in the storage store yet.
+    // Return undefined so resolveWarehouseStore logs the full diagnostic rather
+    // than silently returning a storeId that getById() will reject later.
+    console.warn(
+      `[APXM] _compat: warehouse ${warehouseId.slice(0, 8)} storeId=${wh.storeId ? wh.storeId.slice(0, 8) : '(empty)'} not found in storage store — STORAGE_STORAGES may not include WAREHOUSE_STORE entries`,
+    );
     return undefined;
+  }
+
+  // Strategy 1: stationNaturalId or systemNaturalId exact match
+  const loc = warehouseState.getByEntityNaturalId(exchangeCode);
+  if (loc) {
+    const sid = storeIdFromWarehouseId(loc.warehouseId);
+    if (sid) return { storeId: sid };
+  }
+
+  // Strategy 2: system-code fallback
+  const systemCode = deriveSystemCode(exchangeCode);
+  if (systemCode) {
+    const bySystem = warehouseState.getBySystem(systemCode);
+    if (bySystem) {
+      const sid = storeIdFromWarehouseId(bySystem.warehouseId);
+      if (sid) {
+        warn(`_compat: warehouse for '${exchangeCode}' matched by system '${systemCode}' — may be ambiguous if you have warehouses at two ${systemCode} exchanges`);
+        return { storeId: sid };
+      }
+    }
+  }
+
+  // Nothing found — always-visible diagnostics (not gated by ?apxm_debug).
+  const whSnapshot = warehouseState.warehouses.map(w =>
+    `[${w.warehouseId.slice(0, 8)} sys=${w.systemNaturalId} sta=${w.stationNaturalId ?? 'null'} storeId=${w.storeId ? w.storeId.slice(0, 8) : '(empty)'}]`
+  ).join(', ');
+  // Also dump every WAREHOUSE_STORE entry in the storage store — if these exist
+  // but the warehouse store is empty, STORAGE_STORAGES has the inventory but
+  // WAREHOUSE_STORAGES never populated the location lookup table.
+  const storageWhEntries = storageState.getAll()
+    .filter(s => s.type === 'WAREHOUSE_STORE')
+    .map(s => `[id=${s.id.slice(0, 8)} addr=${s.addressableId.slice(0, 8)} name=${s.name ?? 'null'}]`)
+    .join(', ');
+  console.warn(
+    `[APXM] CX warehouse not found for '${exchangeCode}'.` +
+    `\n  useWarehouseStore entries: ${whSnapshot || '(empty — WAREHOUSE_STORAGES not processed?)'}` +
+    `\n  storageStore WAREHOUSE_STORE entries: ${storageWhEntries || '(none — not in STORAGE_STORAGES either)'}`,
+  );
+  return undefined;
+}
+
+export const warehousesStore = {
+  getByEntityNaturalId(naturalId: string | undefined): { storeId: string } | undefined {
+    if (!naturalId) return undefined;
+    return resolveWarehouseStore(naturalId);
   },
+};
+
+// Static mapping of CX exchange codes to their station entity naturalIds.
+// These are fundamental game constants — the 4 commodity exchanges in PrUn.
+const CX_STATION_NATURAL_IDS: Record<string, string> = {
+  AI1: 'ANT',  // Antares Industrial Exchange
+  CI1: 'BEN',  // Benten Commodity Exchange
+  NC1: 'MOR',  // Moria Transit Exchange
+  IC1: 'HRT',  // Hort Trade Center
 };
 
 export const exchangesStore = {
   getNaturalIdFromCode(code: string | undefined): string | undefined {
-    return code;
+    if (!code) return undefined;
+    // Dynamic store (populated from COMEX_BROKER_DATA when a CX buffer is opened)
+    // takes priority; static map is the reliable fallback for login-time lookups.
+    return useExchangeStore.getState().getNaturalIdFromCode(code)
+      ?? CX_STATION_NATURAL_IDS[code]
+      ?? code;
   },
 };
 
-// APXM does not yet have a materials store; stub returns undefined so that
-// formatTotals() in action-runner gracefully shows zero weight/volume.
 export const materialsStore = {
-  getByTicker(_ticker: string): { weight: number; volume: number } | undefined {
-    return undefined;
+  getByTicker(ticker: string): { weight: number; volume: number } | undefined {
+    return useMaterialsStore.getState().getByTicker(ticker);
   },
 };
 
-// CX order book store — needed by cx-buy/utils. Stubbed.
-export interface CXOrder {
-  amount: number | null;
-  limit: { amount: number };
-}
-export interface CXOrderBook {
-  sellingOrders: CXOrder[];
-}
+export type CXOrder = import('../../types/prun-api').PrunApi.CXOrder;
+export type CXOrderBook = import('../../types/prun-api').PrunApi.CXOrderBook;
+
 export const cxobStore = {
-  getByTicker(_cxTicker: string): CXOrderBook | undefined {
-    return undefined;
+  getByTicker(cxTicker: string): CXOrderBook | undefined {
+    return useCxobStore.getState().getByTicker(cxTicker);
   },
 };
 
