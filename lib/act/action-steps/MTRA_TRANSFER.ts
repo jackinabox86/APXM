@@ -82,7 +82,15 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     console.log('[MTRA] C.MaterialSelector:', JSON.stringify(C.MaterialSelector));
     console.log('[MTRA] container found:', !!container);
 
+    // WebKit won't fire focus/input events on visibility:hidden elements.
+    // Restore visibility (container stays at left:-9999px so nothing flashes)
+    // so APEX's MaterialSelector can react to input and render its dropdown.
+    const bufContainer = tile.anchor as HTMLElement;
+    const prevVisibility = bufContainer.style.visibility;
+    bufContainer.style.visibility = 'visible';
     const ok = await selectMaterial(container!, ticker);
+    bufContainer.style.visibility = prevVisibility;
+
     if (!ok) {
       fail(`Ticker ${ticker} not found in the material selector`);
       return;
