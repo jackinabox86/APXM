@@ -18,8 +18,12 @@ import { setInputValue } from '../../buffer-refresh/dom-helpers';
  * @param ticker     Ticker to match in the suggestion list (e.g. "H2O").
  */
 export async function selectMaterial(container: Element, ticker: string, searchName: string): Promise<boolean> {
-  const input = (await $(container, C.MaterialSelector.input)) as HTMLInputElement | null;
-  console.log('[selectMaterial] input found:', !!input, 'C.MaterialSelector.input:', C.MaterialSelector?.input);
+  // Mobile APEX renders inputMobile; desktop renders input. Try mobile first.
+  let input = (await $(container, C.MaterialSelector.inputMobile, 1000)) as HTMLInputElement | null;
+  if (!input) {
+    input = (await $(container, C.MaterialSelector.input)) as HTMLInputElement | null;
+  }
+  console.log('[selectMaterial] input found:', !!input, 'mobile?', !!_$(container, C.MaterialSelector.inputMobile));
   if (!input) {
     return false;
   }
