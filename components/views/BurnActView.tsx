@@ -4,8 +4,13 @@ import '../../lib/act/register-all';
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSitesStore } from '../../stores/entities/sites';
+import { useStorageStore } from '../../stores/entities/storage';
+import { useShipsStore } from '../../stores/entities/ships';
+import { useWarehouseStore } from '../../stores/warehouses';
+import { useExchangeStore } from '../../stores/exchanges';
 import { useGameState } from '../../stores/gameState';
 import { getEntityDisplayName } from '../../lib/address';
+import { serializeStorage, atSameLocation } from '../../lib/act/actions/utils';
 import { setupActGlobals } from '../../lib/act/globals-setup';
 import { ActionRunner } from '../../lib/act/runner/action-runner';
 import { Logger } from '../../lib/act/runner/logger';
@@ -15,6 +20,9 @@ import { configurableValue } from '../../lib/act/shared-types';
 import type { ActionPackageConfig } from '../../lib/act/shared-types';
 
 const EXCHANGES = ['AI1', 'CI1', 'CI2', 'IC1', 'NC1', 'NC2'] as const;
+
+// Static exchange-code → CX station naturalId fallback (mirrors _compat.ts).
+const CX_STATION_IDS: Record<string, string> = { AI1: 'ANT', CI1: 'BEN', NC1: 'MOR', IC1: 'HRT' };
 
 const INPUT_CLS =
   'w-full min-h-touch px-3 py-2 text-sm bg-apxm-bg border border-apxm-accent rounded ' +
@@ -38,11 +46,15 @@ export function BurnActView() {
   // Stable selector — getAll() creates a new array every call so subscribing
   // to lastUpdated instead avoids React 19 useSyncExternalStore tearing loops.
   const sitesLastUpdated = useSitesStore((s) => s.lastUpdated);
+  const storagesLastUpdated = useStorageStore((s) => s.lastUpdated);
+  const shipsLastUpdated = useShipsStore((s) => s.lastUpdated);
+  const warehousesCount = useWarehouseStore((s) => s.warehouses.length);
+  const exchangesCount = useExchangeStore((s) => s.exchanges.length);
 
   // Form state
   const [planet, setPlanet] = useState(activeActPlanet ?? '');
   const [days, setDays] = useState('30');
-  const [exchange, setExchange] = useState('CI1');
+  const [exchange, setExchange] = useState('AI1');
   const [origin, setOrigin] = useState('');
   const [dest, setDest] = useState('');
 
@@ -90,6 +102,68 @@ export function BurnActView() {
       .sort((a, b) => a.label.localeCompare(b.label)),
     [sitesLastUpdated],
   );
+
+  // Resolve the warehouseId for the currently selected exchange.
+  const exchangeWhId = useMemo(() => {
+    const naturalId = useExchangeStore.getState().getNaturalIdFromCode(exchange) ?? CX_STATION_IDS[exchange];
+    if (!naturalId) return undefined;
+    return useWarehouseStore.getState().getByEntityNaturalId(naturalId)?.warehouseId;
+  }, [exchange, warehousesCount, exchangesCount]);
+
+  // Build ordered storage options: exchange CX warehouse → bases → other warehouses → ships.
+  const storageOptions = useMemo(() => {
+    const all = useStorageStore.getState().getAll()
+      .filter((s) => s.type === 'STORE' || s.type === 'SHIP_STORE' || s.type === 'WAREHOUSE_STORE');
+
+    const toOpts = (arr: typeof all) =>
+      arr.map((s) => ({ value: serializeStorage(s), storage: s }))
+         .sort((a, b) => a.value.localeCompare(b.value));
+
+    const exchangeWh  = all.filter((s) => s.type === 'WAREHOUSE_STORE' && s.addressableId === exchangeWhId);
+    const bases       = all.filter((s) => s.type === 'STORE');
+    const otherWh     = all.filter((s) => s.type === 'WAREHOUSE_STORE' && s.addressableId !== exchangeWhId);
+    const ships       = all.filter((s) => s.type === 'SHIP_STORE');
+
+    return [...toOpts(exchangeWh), ...toOpts(bases), ...toOpts(otherWh), ...toOpts(ships)];
+  }, [exchangeWhId, storagesLastUpdated, sitesLastUpdated, shipsLastUpdated, warehousesCount]);
+
+  const originStorage = useMemo(
+    () => storageOptions.find((o) => o.value === origin)?.storage ?? null,
+    [origin, storageOptions],
+  );
+
+  // Destination options: same-location filter applied to the already-ordered storageOptions,
+  // so the category order (exchange wh → bases → other wh → ships) is preserved.
+  const destOptions = useMemo(() => {
+    if (!originStorage) return [];
+    return storageOptions.filter((o) => atSameLocation(originStorage, o.storage));
+  }, [originStorage, storageOptions]);
+
+  // When exchange changes, auto-select its CX warehouse as origin (or clear if none).
+  useEffect(() => {
+    const label = storageOptions.find(
+      (o) => o.storage.type === 'WAREHOUSE_STORE' && o.storage.addressableId === exchangeWhId,
+    )?.value ?? '';
+    setOrigin(label);
+    setDest('');
+  }, [exchange]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // If origin is still empty when the exchange warehouse first becomes available
+  // (e.g. storages loaded from cache after mount), fill it in.
+  useEffect(() => {
+    if (origin !== '') return;
+    const label = storageOptions.find(
+      (o) => o.storage.type === 'WAREHOUSE_STORE' && o.storage.addressableId === exchangeWhId,
+    )?.value;
+    if (label) setOrigin(label);
+  }, [exchangeWhId, storageOptions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset destination when origin changes or it no longer appears in destOptions.
+  useEffect(() => {
+    if (!origin || !destOptions.find((o) => o.value === dest)) {
+      setDest('');
+    }
+  }, [origin, destOptions]);
 
   function buildPackage() {
     const planetName =
@@ -227,35 +301,42 @@ export function BurnActView() {
           </select>
         </div>
 
-        {/* Optional MTRA fields */}
-        <details className="group">
-          <summary className="cursor-pointer text-xs text-apxm-muted hover:text-apxm-text list-none flex items-center gap-1">
-            <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
-            MTRA transfer (optional)
-          </summary>
-          <div className="mt-2 space-y-2 pl-3 border-l border-apxm-accent">
-            <div className="space-y-1">
-              <label className={LABEL_CLS}>Origin (e.g. &quot;Antares III Base&quot;)</label>
-              <input
-                type="text"
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-                className={INPUT_CLS}
-                placeholder="CX Warehouse name or Base name"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className={LABEL_CLS}>Destination</label>
-              <input
-                type="text"
-                value={dest}
-                onChange={(e) => setDest(e.target.value)}
-                className={INPUT_CLS}
-                placeholder="Base name or Cargo name"
-              />
-            </div>
-          </div>
-        </details>
+        {/* MTRA origin — "CX Buy only" at bottom opts out of transfer */}
+        <div className="space-y-1">
+          <label className={LABEL_CLS}>MTRA Origin <span className="normal-case">(CX BUY ONLY = SKIP MTRA)</span></label>
+          <select
+            value={origin}
+            onChange={(e) => { setOrigin(e.target.value); setDest(''); }}
+            className={SELECT_CLS}
+          >
+            {storageOptions.map((o) => (
+              <option key={o.storage.id} value={o.value}>{o.value}</option>
+            ))}
+            <option value="">— CX Buy only —</option>
+          </select>
+        </div>
+
+        {/* MTRA destination — filtered to same location as origin */}
+        <div className="space-y-1">
+          <label className={LABEL_CLS}>MTRA Destination</label>
+          <select
+            value={dest}
+            onChange={(e) => setDest(e.target.value)}
+            className={SELECT_CLS}
+            disabled={!origin}
+          >
+            {!origin ? (
+              <option value="">— no MTRA —</option>
+            ) : (
+              <>
+                <option value="">— select destination —</option>
+                {destOptions.map((o) => (
+                  <option key={o.storage.id} value={o.value}>{o.value}</option>
+                ))}
+              </>
+            )}
+          </select>
+        </div>
       </div>
 
       {/* Action buttons */}
