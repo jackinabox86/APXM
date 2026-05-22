@@ -696,40 +696,39 @@ export function initMessageHandlers(): void {
       return;
     }
 
-    // Resolve material ticker (field name varies: "ticker" or "material.ticker")
-    let materialTicker: string | undefined;
-    if (typeof payload.ticker === 'string') {
-      materialTicker = payload.ticker;
-    } else if (payload.material && typeof payload.material === 'object') {
-      const mat = payload.material as Record<string, unknown>;
-      if (typeof mat.ticker === 'string') materialTicker = mat.ticker;
-    }
+    // payload.ticker is the full CX ticker "WAI.AI1" — use it directly as the key.
+    // payload.material.ticker is only the material part "WAI"; combining with
+    // exchangeCode was the old (wrong) approach that produced "WAI.AI1.AI1".
+    const cxTicker = typeof payload.ticker === 'string' ? payload.ticker : undefined;
 
-    // Resolve exchange code and station naturalId (field names vary).
+    // Resolve exchange code from the exchange sub-object or top-level field.
     let exchangeCode: string | undefined;
-    let exchangeNaturalId: string | undefined;
     if (typeof payload.exchangeCode === 'string') {
       exchangeCode = payload.exchangeCode;
     } else if (payload.exchange && typeof payload.exchange === 'object') {
       const ex = payload.exchange as Record<string, unknown>;
       if (typeof ex.code === 'string') exchangeCode = ex.code;
-      // naturalId links the exchange code to the station entity (e.g. "AI1" → "ANT").
-      if (typeof ex.naturalId === 'string') exchangeNaturalId = ex.naturalId;
+    }
+    // Fallback: derive exchange code from the CX ticker after the last dot.
+    if (!exchangeCode && cxTicker) {
+      const dot = cxTicker.lastIndexOf('.');
+      if (dot > 0) exchangeCode = cxTicker.slice(dot + 1);
     }
 
-    if (!materialTicker || !exchangeCode) {
+    if (!cxTicker || !exchangeCode) {
       warn('COMEX_BROKER_DATA: could not parse ticker/exchange', payload);
       return;
     }
 
-    // If the exchange object ever gains a naturalId field, store the mapping
-    // for the dynamic lookup path. Currently the game's exchange object only
-    // has id/name/code/_type, so the static map in _compat.ts is the source.
-    if (exchangeNaturalId) {
-      useExchangeStore.getState().setExchange(exchangeCode, exchangeNaturalId);
+    // Extract station naturalId from the address lines and populate the
+    // dynamic exchange store (code→naturalId). The exchange object itself
+    // has no naturalId field, but the address always has a STATION line.
+    const address = payload.address as { lines?: Array<{ type?: string; entity?: { naturalId?: string } }> } | undefined;
+    const stationLine = address?.lines?.find(l => l.type === 'STATION');
+    const stationNaturalId = stationLine?.entity?.naturalId;
+    if (stationNaturalId) {
+      useExchangeStore.getState().setExchange(exchangeCode, stationNaturalId);
     }
-
-    const cxTicker = `${materialTicker}.${exchangeCode}`;
 
     function parseOrders(raw: unknown): PrunApi.CXOrder[] {
       if (!Array.isArray(raw)) return [];
