@@ -3,6 +3,7 @@ import { Card, MaterialTile } from '../shared';
 import { useSettingsStore, DEFAULT_THRESHOLDS, type MaterialTheme } from '../../stores/settings';
 import { testConnection, populateStoresFromFio, type FioProgressStep } from '../../lib/fio';
 import { clearAllCache } from '../../stores/cache';
+import { BUILD_VERSION } from '../../lib/constants';
 
 type ConnectionStatus = 'untested' | 'testing' | 'valid' | 'invalid';
 
@@ -176,6 +177,8 @@ export function SettingsView() {
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-apxm-muted">{BUILD_VERSION}</p>
+
       {/* Burn Thresholds Section */}
       <Card>
         <h2 className="text-prun-yellow text-sm font-semibold mb-1">Burn Thresholds</h2>
