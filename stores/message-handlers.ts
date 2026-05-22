@@ -484,15 +484,19 @@ export function initMessageHandlers(): void {
 
   function extractWarehouse(wh: Record<string, unknown>): WarehouseLocation | null {
     const warehouseId = wh.warehouseId as string | undefined;
-    // storeId may live at the top level as "storeId"/"storageId", or be embedded
-    // inside a "store"/"storage" sub-object when the game sends the full inventory
-    // inline with the warehouse record.
+    if (typeof warehouseId !== 'string') return null;
+
+    // storeId may live at the top level ("storeId"/"storageId"), or be embedded
+    // inside a "store"/"storage" sub-object, or be absent entirely when the game
+    // sends the inventory data separately in STORAGE_STORAGES.  Use "" as a
+    // sentinel — _compat's storeIdFromWarehouseId will derive the real id via
+    // addressableId cross-reference and won't return the empty string to callers.
     const embeddedStoreObj = (wh.store ?? wh.storage) as Record<string, unknown> | undefined;
     const storeId = (
-      wh.storeId ?? wh.storageId ?? embeddedStoreObj?.id
-    ) as string | undefined;
+      (wh.storeId ?? wh.storageId ?? embeddedStoreObj?.id ?? '') as string
+    );
+
     const address = wh.address as { lines?: Array<{ type?: string; entity?: { naturalId?: string } }> } | undefined;
-    if (typeof warehouseId !== 'string' || typeof storeId !== 'string') return null;
     const systemLine = address?.lines?.find((l) => l.type === 'SYSTEM');
     const systemNaturalId = systemLine?.entity?.naturalId;
     if (typeof systemNaturalId !== 'string') return null;
@@ -517,24 +521,36 @@ export function initMessageHandlers(): void {
   }
 
   typeHandlers.set('WAREHOUSE_STORAGES', (msg: ProcessedMessage) => {
-    const payload = extractPayload(msg) as { storages?: unknown[] };
-    if (Array.isArray(payload?.storages)) {
+    const payload = extractPayload(msg) as Record<string, unknown> | null;
+    // Game may use "storages" or "warehouses" as the array field name.
+    const raw = payload?.storages ?? payload?.warehouses;
+    const arr = Array.isArray(raw) ? (raw as unknown[]) : null;
+    if (arr) {
       const locations: WarehouseLocation[] = [];
       const embeddedStores: PrunApi.Store[] = [];
-      for (const wh of payload.storages) {
+      let parseFailures = 0;
+      for (const wh of arr) {
         if (wh && typeof wh === 'object') {
           const loc = extractWarehouse(wh as Record<string, unknown>);
           if (loc) locations.push(loc);
+          else parseFailures++;
           const embedded = extractEmbeddedStore(wh as Record<string, unknown>);
           if (embedded) embeddedStores.push(embedded);
         }
       }
+      // Always log — warehouse lookup failures are silent otherwise.
+      console.log(
+        `[APXM] WAREHOUSE_STORAGES: ${arr.length} entries → ${locations.length} locations, ` +
+        `${embeddedStores.length} embedded stores` +
+        (parseFailures > 0 ? `, ${parseFailures} parse failures` : ''),
+      );
       useWarehouseStore.getState().setWarehouses(locations);
       if (embeddedStores.length > 0) {
         useStorageStore.getState().setMany(embeddedStores);
       }
     } else {
-      warn('WAREHOUSE_STORAGES: unexpected payload structure', payload);
+      // Always visible so we can diagnose missing warehouse data without ?apxm_debug.
+      console.warn('[APXM] WAREHOUSE_STORAGES: unexpected payload structure', payload);
     }
   });
 

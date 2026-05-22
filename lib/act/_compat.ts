@@ -99,9 +99,10 @@ function resolveWarehouseStore(exchangeCode: string): { storeId: string } | unde
       .find(s => s.type === 'WAREHOUSE_STORE' && s.addressableId === warehouseId);
     if (byAddr) return byAddr.id;
     // Secondary: the recorded storeId if it's already present in the storage store.
-    if (storageState.getById(wh.storeId)) return wh.storeId;
-    // Last resort: return the recorded storeId; the storage entry may arrive later.
-    return wh.storeId;
+    // Treat "" as a sentinel (extractWarehouse fell back to empty — no top-level field).
+    if (wh.storeId && storageState.getById(wh.storeId)) return wh.storeId;
+    // Last resort: return the recorded storeId only if non-empty.
+    return wh.storeId || undefined;
   }
 
   // Strategy 1: stationNaturalId or systemNaturalId exact match
@@ -124,11 +125,22 @@ function resolveWarehouseStore(exchangeCode: string): { storeId: string } | unde
     }
   }
 
-  // Nothing found — log diagnostics so the failure mode is visible in DevTools
-  const snapshot = warehouseState.warehouses.map(w =>
-    `[${w.warehouseId.slice(0, 8)} sys=${w.systemNaturalId} sta=${w.stationNaturalId ?? 'null'} storeId=${w.storeId.slice(0, 8)}]`
+  // Nothing found — always-visible diagnostics (not gated by ?apxm_debug).
+  const whSnapshot = warehouseState.warehouses.map(w =>
+    `[${w.warehouseId.slice(0, 8)} sys=${w.systemNaturalId} sta=${w.stationNaturalId ?? 'null'} storeId=${w.storeId ? w.storeId.slice(0, 8) : '(empty)'}]`
   ).join(', ');
-  warn(`_compat: CX warehouse not found for '${exchangeCode}'. Warehouses in store: ${snapshot || '(empty)'}`);
+  // Also dump every WAREHOUSE_STORE entry in the storage store — if these exist
+  // but the warehouse store is empty, STORAGE_STORAGES has the inventory but
+  // WAREHOUSE_STORAGES never populated the location lookup table.
+  const storageWhEntries = storageState.getAll()
+    .filter(s => s.type === 'WAREHOUSE_STORE')
+    .map(s => `[id=${s.id.slice(0, 8)} addr=${s.addressableId.slice(0, 8)} name=${s.name ?? 'null'}]`)
+    .join(', ');
+  console.warn(
+    `[APXM] CX warehouse not found for '${exchangeCode}'.` +
+    `\n  useWarehouseStore entries: ${whSnapshot || '(empty — WAREHOUSE_STORAGES not processed?)'}` +
+    `\n  storageStore WAREHOUSE_STORE entries: ${storageWhEntries || '(none — not in STORAGE_STORAGES either)'}`,
+  );
   return undefined;
 }
 
