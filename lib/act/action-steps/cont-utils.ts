@@ -12,7 +12,12 @@ import { setInputValue } from '../../buffer-refresh/dom-helpers';
  * Select a material by ticker inside a MaterialSelector component.
  * Returns true on success, false if the ticker was not found.
  */
-export async function selectMaterial(container: Element, ticker: string): Promise<boolean> {
+/**
+ * @param searchName Full material name to type into the input (e.g. "Water").
+ *   APEX's MTRA material selector filters by name, not ticker.
+ * @param ticker     Ticker to match in the suggestion list (e.g. "H2O").
+ */
+export async function selectMaterial(container: Element, ticker: string, searchName: string): Promise<boolean> {
   const input = (await $(container, C.MaterialSelector.input)) as HTMLInputElement | null;
   console.log('[selectMaterial] input found:', !!input, 'C.MaterialSelector.input:', C.MaterialSelector?.input);
   if (!input) {
@@ -29,7 +34,7 @@ export async function selectMaterial(container: Element, ticker: string): Promis
 
   focusElement(input);
   await sleep(50);
-  setInputValue(input, ticker);
+  setInputValue(input, searchName);
   input.dispatchEvent(new Event('change', { bubbles: true }));
 
   // Suggestions dropdown may render in a React portal at document.body rather

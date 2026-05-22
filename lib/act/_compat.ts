@@ -181,8 +181,10 @@ export const exchangesStore = {
   },
 };
 
+export type Material = import('../../types/prun-api').PrunApi.Material;
+
 export const materialsStore = {
-  getByTicker(ticker: string): { weight: number; volume: number } | undefined {
+  getByTicker(ticker: string): Material | undefined {
     return useMaterialsStore.getState().getByTicker(ticker);
   },
 };

@@ -88,7 +88,7 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     const bufContainer = tile.anchor as HTMLElement;
     const prevVisibility = bufContainer.style.visibility;
     bufContainer.style.visibility = 'visible';
-    const ok = await selectMaterial(container!, ticker);
+    const ok = await selectMaterial(container!, ticker, material.name);
     bufContainer.style.visibility = prevVisibility;
 
     if (!ok) {
