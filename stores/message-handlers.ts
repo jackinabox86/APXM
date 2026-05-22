@@ -20,6 +20,7 @@ import { useCompanyStore } from './company';
 import { useWarehouseStore, type WarehouseLocation } from './warehouses';
 import { useMaterialsStore } from './entities/materials';
 import { useCxobStore } from './cxob';
+import { useExchangeStore } from './exchanges';
 
 type MessageHandler = (msg: ProcessedMessage) => void;
 const typeHandlers = new Map<string, MessageHandler>();
@@ -97,6 +98,7 @@ export function initMessageHandlers(): void {
     if (reconnectCount > 0) {
       clearAllEntityStores();
       useSiteSourceStore.getState().clear();
+      useExchangeStore.getState().clear();
     }
     useConnectionStore.getState().incrementReconnectCount();
     useConnectionStore.getState().setConnected(true);
@@ -703,18 +705,35 @@ export function initMessageHandlers(): void {
       if (typeof mat.ticker === 'string') materialTicker = mat.ticker;
     }
 
-    // Resolve exchange code (field name varies)
+    // Resolve exchange code and station naturalId (field names vary).
     let exchangeCode: string | undefined;
+    let exchangeNaturalId: string | undefined;
     if (typeof payload.exchangeCode === 'string') {
       exchangeCode = payload.exchangeCode;
     } else if (payload.exchange && typeof payload.exchange === 'object') {
       const ex = payload.exchange as Record<string, unknown>;
       if (typeof ex.code === 'string') exchangeCode = ex.code;
+      // naturalId links the exchange code to the station entity (e.g. "AI1" → "ANT").
+      if (typeof ex.naturalId === 'string') exchangeNaturalId = ex.naturalId;
     }
 
     if (!materialTicker || !exchangeCode) {
       warn('COMEX_BROKER_DATA: could not parse ticker/exchange', payload);
       return;
+    }
+
+    // Persist the code↔naturalId mapping so warehouse lookups can resolve
+    // exchange codes (AI1) to station entity naturalIds (ANT).
+    if (exchangeNaturalId) {
+      const isNew = !useExchangeStore.getState().getNaturalIdFromCode(exchangeCode);
+      useExchangeStore.getState().setExchange(exchangeCode, exchangeNaturalId);
+      if (isNew) {
+        console.log(`[APXM] exchange mapped: ${exchangeCode} → ${exchangeNaturalId}`);
+      }
+    } else if (!useExchangeStore.getState().getNaturalIdFromCode(exchangeCode)) {
+      // First time seeing this exchange with no naturalId — log the raw sub-object
+      // so we can find the right field name if it's not "naturalId".
+      console.warn(`[APXM] COMEX_BROKER_DATA: no naturalId for exchange ${exchangeCode}`, payload.exchange);
     }
 
     const cxTicker = `${materialTicker}.${exchangeCode}`;

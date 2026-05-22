@@ -27,6 +27,7 @@ import {
   getInventoryFromStores,
 } from '../../core/burn';
 import { useWarehouseStore } from '../../stores/warehouses';
+import { useExchangeStore } from '../../stores/exchanges';
 import { useMaterialsStore } from '../../stores/entities/materials';
 import { useCxobStore } from '../../stores/cxob';
 import { warn } from '../debug/logger';
@@ -158,7 +159,11 @@ export const warehousesStore = {
 
 export const exchangesStore = {
   getNaturalIdFromCode(code: string | undefined): string | undefined {
-    return code;
+    if (!code) return undefined;
+    // Map exchange code (e.g. "AI1") → station entity naturalId (e.g. "ANT").
+    // Falls back to the code itself so callers don't crash when the exchange
+    // store hasn't been populated yet (COMEX_BROKER_DATA hasn't arrived).
+    return useExchangeStore.getState().getNaturalIdFromCode(code) ?? code;
   },
 };
 
