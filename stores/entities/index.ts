@@ -8,6 +8,7 @@ import { useShipsStore } from './ships';
 import { useFlightsStore } from './flights';
 import { useContractsStore } from './contracts';
 import { useBalancesStore } from './balances';
+import { useAlertsStore } from './alerts';
 
 export { useSitesStore, type SitesStore } from './sites';
 
@@ -42,6 +43,8 @@ export { useContractsStore, type ContractsStore } from './contracts';
 
 export { useBalancesStore, type BalancesStore } from './balances';
 
+export { useAlertsStore, type AlertsStore } from './alerts';
+
 // Utility to clear all entity stores (used on reconnect)
 export function clearAllEntityStores(): void {
   useSitesStore.getState().clear();
@@ -52,6 +55,7 @@ export function clearAllEntityStores(): void {
   useFlightsStore.getState().clear();
   useContractsStore.getState().clear();
   useBalancesStore.getState().clear();
+  useAlertsStore.getState().clear();
 }
 
 // Batch mode — suppresses Zustand listener notifications during bulk
@@ -60,7 +64,7 @@ export function clearAllEntityStores(): void {
 const allStores = [
   useSitesStore, useStorageStore, useWorkforceStore,
   useProductionStore, useShipsStore, useFlightsStore, useContractsStore,
-  useBalancesStore,
+  useBalancesStore, useAlertsStore,
 ];
 
 export function beginEntityBatch(): void {

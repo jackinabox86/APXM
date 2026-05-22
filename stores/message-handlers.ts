@@ -11,6 +11,7 @@ import {
   useFlightsStore,
   useContractsStore,
   useBalancesStore,
+  useAlertsStore,
   clearAllEntityStores,
   type WorkforceEntity,
 } from './entities';
@@ -748,5 +749,42 @@ export function initMessageHandlers(): void {
       sellingOrders: parseOrders(payload.sellingOrders),
       buyingOrders: parseOrders(payload.buyingOrders),
     });
+  });
+
+  // ============================================================================
+  // Alerts
+  // ============================================================================
+
+  typeHandlers.set('ALERTS_ALERTS', (msg: ProcessedMessage) => {
+    const payload = extractPayload(msg) as { alerts?: PrunApi.Alert[] };
+    if (Array.isArray(payload?.alerts)) {
+      useAlertsStore.getState().setMany(payload.alerts);
+      useAlertsStore.getState().setFetched('websocket');
+    } else {
+      warn('ALERTS_ALERTS: unexpected payload structure', payload);
+    }
+  });
+
+  typeHandlers.set('ALERTS_ALERT', (msg: ProcessedMessage) => {
+    const alert = extractPayload(msg) as PrunApi.Alert;
+    if (alert?.id) {
+      useAlertsStore.getState().setOne(alert);
+    } else {
+      warn('ALERTS_ALERT: unexpected payload structure', alert);
+      useConnectionStore.getState().incrementDiscarded();
+    }
+  });
+
+  typeHandlers.set('ALERTS_ALERTS_DELETED', (msg: ProcessedMessage) => {
+    const payload = extractPayload(msg) as { alertIds?: string[] };
+    if (Array.isArray(payload?.alertIds)) {
+      const store = useAlertsStore.getState();
+      for (const id of payload.alertIds) {
+        store.removeOne(id);
+      }
+    } else {
+      warn('ALERTS_ALERTS_DELETED: unexpected payload structure', payload);
+      useConnectionStore.getState().incrementDiscarded();
+    }
   });
 }
