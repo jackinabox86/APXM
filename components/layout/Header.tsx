@@ -23,7 +23,7 @@ export function Header() {
     (id) => siteStatus.get(id) === 'success'
   ).length;
 
-  const allRefreshed = refreshedCount === totalCount;
+  const allRefreshed = totalCount > 0 && refreshedCount === totalCount;
   const counterColor = allRefreshed ? 'text-green-400' : 'text-red-400';
 
   const nextSiteId = Array.from(siteEntities.keys()).find(
