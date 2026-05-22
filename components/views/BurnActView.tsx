@@ -4,8 +4,11 @@ import '../../lib/act/register-all';
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSitesStore } from '../../stores/entities/sites';
+import { useStorageStore } from '../../stores/entities/storage';
+import { useShipsStore } from '../../stores/entities/ships';
 import { useGameState } from '../../stores/gameState';
 import { getEntityDisplayName } from '../../lib/address';
+import { serializeStorage, atSameLocation } from '../../lib/act/actions/utils';
 import { setupActGlobals } from '../../lib/act/globals-setup';
 import { ActionRunner } from '../../lib/act/runner/action-runner';
 import { Logger } from '../../lib/act/runner/logger';
@@ -38,6 +41,8 @@ export function BurnActView() {
   // Stable selector — getAll() creates a new array every call so subscribing
   // to lastUpdated instead avoids React 19 useSyncExternalStore tearing loops.
   const sitesLastUpdated = useSitesStore((s) => s.lastUpdated);
+  const storagesLastUpdated = useStorageStore((s) => s.lastUpdated);
+  const shipsLastUpdated = useShipsStore((s) => s.lastUpdated);
 
   // Form state
   const [planet, setPlanet] = useState(activeActPlanet ?? '');
@@ -90,6 +95,32 @@ export function BurnActView() {
       .sort((a, b) => a.label.localeCompare(b.label)),
     [sitesLastUpdated],
   );
+
+  // All storages eligible for MTRA: bases, ship cargo, CX warehouses.
+  const storageOptions = useMemo(() => {
+    return useStorageStore.getState().getAll()
+      .filter(s => s.type === 'STORE' || s.type === 'SHIP_STORE' || s.type === 'WAREHOUSE_STORE')
+      .map(s => ({ value: serializeStorage(s), storage: s }))
+      .sort((a, b) => a.value.localeCompare(b.value));
+  }, [storagesLastUpdated, sitesLastUpdated, shipsLastUpdated]);
+
+  const originStorage = useMemo(
+    () => storageOptions.find(o => o.value === origin)?.storage ?? null,
+    [origin, storageOptions],
+  );
+
+  // Destination options filtered to same location as origin (using refined-prun logic).
+  const destOptions = useMemo(() => {
+    if (!originStorage) return [];
+    return storageOptions.filter(o => atSameLocation(originStorage, o.storage));
+  }, [originStorage, storageOptions]);
+
+  // Reset destination when origin changes or it no longer appears in destOptions.
+  useEffect(() => {
+    if (!origin || !destOptions.find(o => o.value === dest)) {
+      setDest('');
+    }
+  }, [origin, destOptions]);
 
   function buildPackage() {
     const planetName =
@@ -227,35 +258,42 @@ export function BurnActView() {
           </select>
         </div>
 
-        {/* Optional MTRA fields */}
-        <details className="group">
-          <summary className="cursor-pointer text-xs text-apxm-muted hover:text-apxm-text list-none flex items-center gap-1">
-            <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
-            MTRA transfer (optional)
-          </summary>
-          <div className="mt-2 space-y-2 pl-3 border-l border-apxm-accent">
-            <div className="space-y-1">
-              <label className={LABEL_CLS}>Origin (e.g. &quot;Antares III Base&quot;)</label>
-              <input
-                type="text"
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-                className={INPUT_CLS}
-                placeholder="CX Warehouse name or Base name"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className={LABEL_CLS}>Destination</label>
-              <input
-                type="text"
-                value={dest}
-                onChange={(e) => setDest(e.target.value)}
-                className={INPUT_CLS}
-                placeholder="Base name or Cargo name"
-              />
-            </div>
-          </div>
-        </details>
+        {/* MTRA origin — "CX Buy only" at bottom opts out of transfer */}
+        <div className="space-y-1">
+          <label className={LABEL_CLS}>MTRA Origin</label>
+          <select
+            value={origin}
+            onChange={(e) => { setOrigin(e.target.value); setDest(''); }}
+            className={SELECT_CLS}
+          >
+            {storageOptions.map((o) => (
+              <option key={o.storage.id} value={o.value}>{o.value}</option>
+            ))}
+            <option value="">— CX Buy only —</option>
+          </select>
+        </div>
+
+        {/* MTRA destination — filtered to same location as origin */}
+        <div className="space-y-1">
+          <label className={LABEL_CLS}>MTRA Destination</label>
+          <select
+            value={dest}
+            onChange={(e) => setDest(e.target.value)}
+            className={SELECT_CLS}
+            disabled={!origin}
+          >
+            {!origin ? (
+              <option value="">— no MTRA —</option>
+            ) : (
+              <>
+                <option value="">— select destination —</option>
+                {destOptions.map((o) => (
+                  <option key={o.storage.id} value={o.value}>{o.value}</option>
+                ))}
+              </>
+            )}
+          </select>
+        </div>
       </div>
 
       {/* Action buttons */}
