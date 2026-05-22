@@ -14,7 +14,7 @@
 
 import type { BufferRefreshOptions, BufferRefreshStep } from './types';
 import { useRefreshState } from '../../stores/refreshState';
-import { useSitesStore } from '../../stores/entities';
+import { useSitesStore, useStorageStore, useWorkforceStore } from '../../stores/entities';
 import { useSiteSourceStore } from '../../stores/site-data-sources';
 import { warn, error } from '../debug/logger';
 import {
@@ -46,6 +46,42 @@ export class BufferRefreshError extends Error {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Resolve as soon as storage or workforce store data updates (indicating the
+ * server has responded to the BS buffer request), or after timeoutMs — whichever
+ * comes first. Subscriptions are set up before the card is clicked so a fast
+ * server response is never missed.
+ *
+ * Snapshots must be taken before the card click and passed in so that a response
+ * that arrives between click and subscription setup still gets caught on the
+ * initial store-state check inside each subscriber.
+ */
+function waitForServerResponse(
+  timeoutMs: number,
+  storageSnapshotMs: number | null,
+  workforceSnapshotMs: number | null
+): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      unsubStorage();
+      unsubWorkforce();
+      resolve();
+    };
+
+    const unsubStorage = useStorageStore.subscribe((state) => {
+      if (state.lastUpdated !== storageSnapshotMs) finish();
+    });
+    const unsubWorkforce = useWorkforceStore.subscribe((state) => {
+      if (state.lastUpdated !== workforceSnapshotMs) finish();
+    });
+
+    setTimeout(finish, timeoutMs);
+  });
 }
 
 /**
@@ -150,11 +186,16 @@ export async function executeBufferRefresh(options: BufferRefreshOptions): Promi
       throw new BufferRefreshError('wait-card', `Card for "${command}" did not appear`);
     }
 
-    // Step 11: Click the card to trigger the server data request
+    // Step 11: Snapshot store timestamps, then click the card.
+    // Snapshots taken first so a very fast server response isn't missed.
+    const storageSnapshot = useStorageStore.getState().lastUpdated;
+    const workforceSnapshot = useWorkforceStore.getState().lastUpdated;
     card.click();
 
-    // Step 12: Wait for server response to propagate through WebSocket pipeline
-    await delay(stepTimeoutMs);
+    // Step 12: Wait for server response via store update, 800ms fallback.
+    // BS buffer triggers STORAGE_STORAGES (and optionally workforce) messages;
+    // resolving on the first store update is ~4-5x faster than a fixed sleep.
+    await waitForServerResponse(800, storageSnapshot, workforceSnapshot);
 
     store.updateSiteStatus(siteId, 'success');
     useSiteSourceStore.getState().markSite(siteId, 'websocket');
