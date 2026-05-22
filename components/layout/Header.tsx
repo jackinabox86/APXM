@@ -47,7 +47,7 @@ export function Header() {
 
   return (
     <header className="flex items-center justify-between px-4 h-12 bg-apxm-bg border-b border-apxm-surface">
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 h-full">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="28" height="28">
           <rect x="6" y="6" width="116" height="116" rx="8" fill="#0a0a0a"/>
           <rect x="6" y="6" width="116" height="116" rx="8" fill="none" stroke="#f7a600" strokeWidth="5"/>
@@ -58,7 +58,7 @@ export function Header() {
           onClick={handleRefresh}
           disabled={!canRefresh}
           aria-label="Refresh next base"
-          className={`min-h-touch flex items-center gap-1.5 px-1 text-base ${
+          className={`h-full flex items-center gap-1.5 px-1 text-base ${
             isRefreshing
               ? 'cursor-wait text-apxm-muted'
               : canRefresh
@@ -70,11 +70,11 @@ export function Header() {
           <span className={`text-xs leading-none ${counterColor}`}>{refreshedCount}/{totalCount}</span>
         </button>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 h-full">
         <StatusDot status={status} />
         <button
           onClick={() => setApexVisible(true)}
-          className="px-3 min-h-touch flex items-center text-xs font-medium text-apxm-text border border-apxm-surface hover:border-prun-yellow hover:text-prun-yellow"
+          className="px-3 h-full flex items-center text-xs font-medium text-apxm-text border border-apxm-surface hover:border-prun-yellow hover:text-prun-yellow"
         >
           SHOW APEX
         </button>
