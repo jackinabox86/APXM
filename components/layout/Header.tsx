@@ -66,8 +66,8 @@ export function Header() {
                 : 'cursor-default text-apxm-text/30'
           }`}
         >
-          <span className={isRefreshing ? 'animate-spin inline-block' : ''}>↻</span>
-          <span className={`text-xs ${counterColor}`}>{refreshedCount}/{totalCount}</span>
+          <span className={`leading-none${isRefreshing ? ' animate-spin inline-block' : ''}`}>↻</span>
+          <span className={`text-xs leading-none ${counterColor}`}>{refreshedCount}/{totalCount}</span>
         </button>
       </div>
       <div className="flex items-center gap-3">

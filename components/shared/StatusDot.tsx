@@ -16,10 +16,10 @@ export function StatusDot({ status }: StatusDotProps) {
   return (
     <div className="flex items-center gap-1.5">
       <span
-        className={`h-2 w-2 ${color} ${pulse ? 'animate-pulse' : ''}`}
+        className={`inline-block h-2 w-2 shrink-0 ${color} ${pulse ? 'animate-pulse' : ''}`}
         aria-label={label}
       />
-      <span className="text-xs text-apxm-muted">{label}</span>
+      <span className="text-xs leading-none text-apxm-muted">{label}</span>
     </div>
   );
 }
