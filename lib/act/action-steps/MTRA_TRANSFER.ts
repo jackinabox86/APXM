@@ -79,6 +79,8 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
 
     setStatus('Setting up MTRA buffer...');
     const container = await $(tile.anchor, C.MaterialSelector.container);
+    console.log('[MTRA] C.MaterialSelector:', JSON.stringify(C.MaterialSelector));
+    console.log('[MTRA] container found:', !!container);
 
     const ok = await selectMaterial(container!, ticker);
     if (!ok) {
