@@ -38,8 +38,11 @@ export async function selectMaterial(container: Element, ticker: string, searchN
 
   focusElement(input);
   await sleep(50);
+  console.log('[selectMaterial] activeElement after focus:', document.activeElement?.className?.slice(0, 60));
   setInputValue(input, searchName);
   input.dispatchEvent(new Event('change', { bubbles: true }));
+  console.log('[selectMaterial] input.value after set:', input.value);
+  console.log('[selectMaterial] suggestionsContainer children before wait:', suggestionsContainer?.children.length, suggestionsContainer?.innerHTML.slice(0, 200));
 
   // Suggestions dropdown may render in a React portal at document.body rather
   // than inside the MaterialSelector container — search locally first (fast),
@@ -50,6 +53,7 @@ export async function selectMaterial(container: Element, ticker: string, searchN
     suggestionsList = await $(document.body, C.MaterialSelector.suggestionsList, 8000);
   }
   console.log('[selectMaterial] suggestionsList found:', !!suggestionsList, 'C.MaterialSelector.suggestionsList:', C.MaterialSelector?.suggestionsList);
+  console.log('[selectMaterial] suggestionsContainer children after wait:', suggestionsContainer?.children.length, suggestionsContainer?.innerHTML.slice(0, 200));
   if (!suggestionsList) {
     if (suggestionsContainer) suggestionsContainer.style.display = '';
     return false;
