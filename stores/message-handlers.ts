@@ -159,6 +159,12 @@ export function initMessageHandlers(): void {
   typeHandlers.set('STORAGE_STORAGES', (msg: ProcessedMessage) => {
     const payload = extractPayload(msg) as { stores?: PrunApi.Store[] };
     if (Array.isArray(payload?.stores)) {
+      // Log type distribution — tells us whether WAREHOUSE_STORE entries arrive here.
+      const typeCounts = payload.stores.reduce((acc: Record<string, number>, s) => {
+        acc[s.type] = (acc[s.type] ?? 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('[APXM] STORAGE_STORAGES:', payload.stores.length, 'stores, types:', JSON.stringify(typeCounts));
       useStorageStore.getState().setAll(payload.stores);
       useStorageStore.getState().setFetched('websocket');
     } else {
@@ -492,8 +498,12 @@ export function initMessageHandlers(): void {
     // sentinel — _compat's storeIdFromWarehouseId will derive the real id via
     // addressableId cross-reference and won't return the empty string to callers.
     const embeddedStoreObj = (wh.store ?? wh.storage) as Record<string, unknown> | undefined;
+    // wh.id is a fallback for when the WAREHOUSE_STORAGES entry is itself a Store
+    // object (the game may fold both warehouse and store data into one wire object).
+    // Only use it if it differs from warehouseId — same UUID means it's the warehouse id.
+    const whId = typeof wh.id === 'string' && wh.id !== warehouseId ? wh.id : undefined;
     const storeId = (
-      (wh.storeId ?? wh.storageId ?? embeddedStoreObj?.id ?? '') as string
+      (wh.storeId ?? wh.storageId ?? embeddedStoreObj?.id ?? whId ?? '') as string
     );
 
     const address = wh.address as { lines?: Array<{ type?: string; entity?: { naturalId?: string } }> } | undefined;
@@ -512,12 +522,24 @@ export function initMessageHandlers(): void {
   // warehouse inventory). We push it into useStorageStore so the rest of the codebase
   // (storagesStore.getById) can find it.
   function extractEmbeddedStore(wh: Record<string, unknown>): PrunApi.Store | null {
+    // Case 1: store data in a nested "store"/"storage" sub-object.
     const s = (wh.store ?? wh.storage) as Record<string, unknown> | undefined;
-    if (!s || typeof s !== 'object') return null;
-    const id = s.id as string | undefined;
-    const type = s.type as string | undefined;
-    if (typeof id !== 'string' || typeof type !== 'string') return null;
-    return s as unknown as PrunApi.Store;
+    if (s && typeof s === 'object') {
+      const id = s.id as string | undefined;
+      const type = s.type as string | undefined;
+      if (typeof id === 'string' && typeof type === 'string') {
+        return s as unknown as PrunApi.Store;
+      }
+    }
+    // Case 2: the WAREHOUSE_STORAGES entry is itself a Store object. The game
+    // may fold both warehouse and store fields into one wire object — identified
+    // by a top-level "items" array (inventory) alongside "warehouseId".
+    const id = wh.id as string | undefined;
+    const type = wh.type as string | undefined;
+    if (typeof id === 'string' && typeof type === 'string' && Array.isArray(wh.items)) {
+      return wh as unknown as PrunApi.Store;
+    }
+    return null;
   }
 
   typeHandlers.set('WAREHOUSE_STORAGES', (msg: ProcessedMessage) => {

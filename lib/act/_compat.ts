@@ -101,8 +101,13 @@ function resolveWarehouseStore(exchangeCode: string): { storeId: string } | unde
     // Secondary: the recorded storeId if it's already present in the storage store.
     // Treat "" as a sentinel (extractWarehouse fell back to empty — no top-level field).
     if (wh.storeId && storageState.getById(wh.storeId)) return wh.storeId;
-    // Last resort: return the recorded storeId only if non-empty.
-    return wh.storeId || undefined;
+    // Both strategies failed — the Store is not in the storage store yet.
+    // Return undefined so resolveWarehouseStore logs the full diagnostic rather
+    // than silently returning a storeId that getById() will reject later.
+    console.warn(
+      `[APXM] _compat: warehouse ${warehouseId.slice(0, 8)} storeId=${wh.storeId ? wh.storeId.slice(0, 8) : '(empty)'} not found in storage store — STORAGE_STORAGES may not include WAREHOUSE_STORE entries`,
+    );
+    return undefined;
   }
 
   // Strategy 1: stationNaturalId or systemNaturalId exact match
