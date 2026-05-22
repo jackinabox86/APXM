@@ -722,18 +722,11 @@ export function initMessageHandlers(): void {
       return;
     }
 
-    // Persist the code↔naturalId mapping so warehouse lookups can resolve
-    // exchange codes (AI1) to station entity naturalIds (ANT).
+    // If the exchange object ever gains a naturalId field, store the mapping
+    // for the dynamic lookup path. Currently the game's exchange object only
+    // has id/name/code/_type, so the static map in _compat.ts is the source.
     if (exchangeNaturalId) {
-      const isNew = !useExchangeStore.getState().getNaturalIdFromCode(exchangeCode);
       useExchangeStore.getState().setExchange(exchangeCode, exchangeNaturalId);
-      if (isNew) {
-        console.log(`[APXM] exchange mapped: ${exchangeCode} → ${exchangeNaturalId}`);
-      }
-    } else if (!useExchangeStore.getState().getNaturalIdFromCode(exchangeCode)) {
-      // First time seeing this exchange with no naturalId — log the raw sub-object
-      // so we can find the right field name if it's not "naturalId".
-      console.warn(`[APXM] COMEX_BROKER_DATA: no naturalId for exchange ${exchangeCode}`, payload.exchange);
     }
 
     const cxTicker = `${materialTicker}.${exchangeCode}`;
