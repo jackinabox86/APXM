@@ -91,7 +91,7 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     const prevLeft = bufContainer.style.left;
     bufContainer.style.visibility = 'visible';
     bufContainer.style.left = '0px';
-    const ok = await selectMaterial(container!, ticker, material.name);
+    const ok = await selectMaterial(container!, ticker, toDisplayName(material.name));
     bufContainer.style.left = prevLeft;
     bufContainer.style.visibility = prevVisibility;
 

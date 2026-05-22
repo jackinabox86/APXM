@@ -12,10 +12,15 @@ import { setInputValue } from '../../buffer-refresh/dom-helpers';
  * Select a material by ticker inside a MaterialSelector component.
  * Returns true on success, false if the ticker was not found.
  */
+/** Convert PrunApi camelCase name to APEX display name: "advancedDeckElements" → "Advanced Deck Elements" */
+export function toDisplayName(name: string): string {
+  return name.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+}
+
 /**
- * @param searchName Full material name to type into the input (e.g. "Water").
- *   APEX's MTRA material selector filters by name, not ticker.
- * @param ticker     Ticker to match in the suggestion list (e.g. "H2O").
+ * @param searchName Display name to type into the input (e.g. "Pioneer Luxury Drink").
+ *   Pass toDisplayName(material.name) — APEX filters by display name, not ticker.
+ * @param ticker     Ticker to match in the suggestion list (e.g. "PLX").
  */
 export async function selectMaterial(container: Element, ticker: string, searchName: string): Promise<boolean> {
   // Mobile APEX renders inputMobile; desktop renders input. Try mobile first.
