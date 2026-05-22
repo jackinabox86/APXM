@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useGameState } from '../../stores/gameState';
 import { useConnectionStatus } from '../../hooks/useConnectionStatus';
 import { StatusDot } from '../shared';
-import { useSitesStore } from '../../stores/entities';
+import { useSitesStore, useAlertsStore } from '../../stores/entities';
 import { useRefreshState } from '../../stores/refreshState';
 import { executeBufferRefresh, buildBufferCommand } from '../../lib/buffer-refresh';
 
@@ -10,6 +10,14 @@ export function Header() {
   const status = useConnectionStatus();
   const { setApexVisible } = useGameState();
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const unseenCount = useAlertsStore((s) => {
+    let n = 0;
+    for (const alert of s.entities.values()) {
+      if (!alert.seen) n++;
+    }
+    return n;
+  });
 
   const siteEntities = useSitesStore((s) => s.entities);
   // Only sites explicitly refreshed via the BS buffer this session count.
@@ -74,9 +82,12 @@ export function Header() {
         <StatusDot status={status} />
         <button
           onClick={() => setApexVisible(true)}
-          className="px-3 h-full flex items-center text-xs font-medium text-apxm-text border border-apxm-surface hover:border-prun-yellow hover:text-prun-yellow"
+          className="px-3 h-full flex items-center gap-1.5 text-xs font-medium text-apxm-text border border-apxm-surface hover:border-prun-yellow hover:text-prun-yellow"
         >
           SHOW APEX
+          {unseenCount > 0 && (
+            <span className="text-prun-yellow">({unseenCount})</span>
+          )}
         </button>
       </div>
     </header>
