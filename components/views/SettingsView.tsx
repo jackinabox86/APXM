@@ -3,6 +3,7 @@ import { Card, MaterialTile } from '../shared';
 import { useSettingsStore, DEFAULT_THRESHOLDS } from '../../stores/settings';
 import { testConnection, populateStoresFromFio, type FioProgressStep } from '../../lib/fio';
 import { clearAllCache } from '../../stores/cache';
+import { BUILD_VERSION } from '../../lib/constants';
 import { openMobileBuffer, closeMobileBuffer } from '../../lib/mobile-buffer-navigator';
 
 type ConnectionStatus = 'untested' | 'testing' | 'valid' | 'invalid';
@@ -451,6 +452,8 @@ export function SettingsView() {
           {debugStatus && <p className="text-xs text-apxm-text">{debugStatus}</p>}
         </div>
       </Card>
+
+      <p className="text-xs text-apxm-muted text-center pb-2">{BUILD_VERSION}</p>
     </div>
   );
 }
