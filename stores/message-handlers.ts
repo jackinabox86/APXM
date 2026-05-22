@@ -484,8 +484,13 @@ export function initMessageHandlers(): void {
 
   function extractWarehouse(wh: Record<string, unknown>): WarehouseLocation | null {
     const warehouseId = wh.warehouseId as string | undefined;
-    // Game uses "storeId" but some messages may use "storageId"
-    const storeId = (wh.storeId ?? wh.storageId) as string | undefined;
+    // storeId may live at the top level as "storeId"/"storageId", or be embedded
+    // inside a "store"/"storage" sub-object when the game sends the full inventory
+    // inline with the warehouse record.
+    const embeddedStoreObj = (wh.store ?? wh.storage) as Record<string, unknown> | undefined;
+    const storeId = (
+      wh.storeId ?? wh.storageId ?? embeddedStoreObj?.id
+    ) as string | undefined;
     const address = wh.address as { lines?: Array<{ type?: string; entity?: { naturalId?: string } }> } | undefined;
     if (typeof warehouseId !== 'string' || typeof storeId !== 'string') return null;
     const systemLine = address?.lines?.find((l) => l.type === 'SYSTEM');

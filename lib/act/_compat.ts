@@ -91,16 +91,16 @@ function resolveWarehouseStore(exchangeCode: string): { storeId: string } | unde
   function storeIdFromWarehouseId(warehouseId: string): string | undefined {
     const wh = warehouseState.warehouses.find(w => w.warehouseId === warehouseId);
     if (!wh) return undefined;
-    // If the storeId is already in the storage store, use it directly.
-    if (storageState.getById(wh.storeId)) return wh.storeId;
-    // If not (storage store hasn't received this warehouse's data yet), try to
-    // find a WAREHOUSE_STORE entry by addressableId — this handles the case
-    // where the storage arrived under a slightly different id/field.
+    // Primary: cross-reference via addressableId === warehouseId. Per rprun,
+    // Store.addressableId for a CX warehouse always points to the warehouse
+    // entity itself, so this match is authoritative regardless of how storeId
+    // was parsed from the original message.
     const byAddr = storageState.getAll()
       .find(s => s.type === 'WAREHOUSE_STORE' && s.addressableId === warehouseId);
     if (byAddr) return byAddr.id;
-    // Return the recorded storeId anyway; the caller's storagesStore.getById()
-    // may still find it if the storage arrives later.
+    // Secondary: the recorded storeId if it's already present in the storage store.
+    if (storageState.getById(wh.storeId)) return wh.storeId;
+    // Last resort: return the recorded storeId; the storage entry may arrive later.
     return wh.storeId;
   }
 
