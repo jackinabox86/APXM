@@ -18,11 +18,10 @@ export function toDisplayName(name: string): string {
 }
 
 /**
- * @param searchName Display name to type into the input (e.g. "Pioneer Luxury Drink").
- *   Pass toDisplayName(material.name) — APEX filters by display name, not ticker.
- * @param ticker     Ticker to match in the suggestion list (e.g. "PLX").
+ * Select a material by ticker inside a MaterialSelector component.
+ * Types the ticker into the input (APEX accepts ticker or full name).
  */
-export async function selectMaterial(container: Element, ticker: string, searchName: string): Promise<boolean> {
+export async function selectMaterial(container: Element, ticker: string): Promise<boolean> {
   // Mobile APEX renders inputMobile; desktop renders input. Try mobile first.
   let input = (await $(container, C.MaterialSelector.inputMobile, 1000)) as HTMLInputElement | null;
   if (!input) {
@@ -47,7 +46,7 @@ export async function selectMaterial(container: Element, ticker: string, searchN
   await sleep(100);
   console.log('[selectMaterial] container class after click:', (container as HTMLElement).className?.slice(0, 120));
   console.log('[selectMaterial] activeElement after click:', document.activeElement?.className?.slice(0, 60));
-  setInputValue(input, searchName);
+  setInputValue(input, ticker);
   input.dispatchEvent(new Event('change', { bubbles: true }));
   console.log('[selectMaterial] input.value after set:', input.value);
   console.log('[selectMaterial] suggestionsContainer children before wait:', suggestionsContainer?.children.length, suggestionsContainer?.innerHTML.slice(0, 200));

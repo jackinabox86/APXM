@@ -14,7 +14,7 @@ import { fixed0, clickElement, waitUntil } from '../_compat';
 import { setInputValue } from '../../buffer-refresh/dom-helpers';
 import { storagesStore, materialsStore } from '../_compat';
 import type { AssertFn } from '../shared-types';
-import { selectMaterial, toDisplayName } from './cont-utils';
+import { selectMaterial } from './cont-utils';
 
 interface Data {
   from: string;
@@ -91,7 +91,7 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     const prevLeft = bufContainer.style.left;
     bufContainer.style.visibility = 'visible';
     bufContainer.style.left = '0px';
-    const ok = await selectMaterial(container!, ticker, toDisplayName(material.name));
+    const ok = await selectMaterial(container!, ticker);
     bufContainer.style.left = prevLeft;
     bufContainer.style.visibility = prevVisibility;
 
