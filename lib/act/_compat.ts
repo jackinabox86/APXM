@@ -151,7 +151,11 @@ function resolveWarehouseStore(exchangeCode: string): { storeId: string } | unde
 }
 
 export const warehousesStore = {
-  getByEntityNaturalId(naturalId: string | undefined): { storeId: string } | undefined {
+  getByEntityNaturalId(naturalId: string | undefined): WarehouseLocation | undefined {
+    if (!naturalId) return undefined;
+    return useWarehouseStore.getState().getByEntityNaturalId(naturalId);
+  },
+  resolveStoreId(naturalId: string | undefined): { storeId: string } | undefined {
     if (!naturalId) return undefined;
     return resolveWarehouseStore(naturalId);
   },

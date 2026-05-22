@@ -696,11 +696,6 @@ export function initMessageHandlers(): void {
       return;
     }
 
-    // payload.ticker is the full CX ticker "WAI.AI1" — use it directly as the key.
-    // payload.material.ticker is only the material part "WAI"; combining with
-    // exchangeCode was the old (wrong) approach that produced "WAI.AI1.AI1".
-    const cxTicker = typeof payload.ticker === 'string' ? payload.ticker : undefined;
-
     // Resolve exchange code from the exchange sub-object or top-level field.
     let exchangeCode: string | undefined;
     if (typeof payload.exchangeCode === 'string') {
@@ -709,10 +704,28 @@ export function initMessageHandlers(): void {
       const ex = payload.exchange as Record<string, unknown>;
       if (typeof ex.code === 'string') exchangeCode = ex.code;
     }
-    // Fallback: derive exchange code from the CX ticker after the last dot.
-    if (!exchangeCode && cxTicker) {
-      const dot = cxTicker.lastIndexOf('.');
-      if (dot > 0) exchangeCode = cxTicker.slice(dot + 1);
+
+    // Build the full CX ticker (e.g. "RAT.CI1").
+    // payload.ticker may be the full "RAT.CI1" or just the material part "RAT".
+    // payload.material.ticker is always just the material part "FE".
+    let cxTicker: string | undefined;
+    if (typeof payload.ticker === 'string') {
+      if (payload.ticker.includes('.')) {
+        // Already a full CX ticker; derive exchange code if still unknown.
+        cxTicker = payload.ticker;
+        if (!exchangeCode) {
+          const dot = payload.ticker.lastIndexOf('.');
+          if (dot > 0) exchangeCode = payload.ticker.slice(dot + 1);
+        }
+      } else {
+        // Material-only ticker — combine with exchange code.
+        if (exchangeCode) cxTicker = `${payload.ticker}.${exchangeCode}`;
+      }
+    } else if (payload.material && typeof payload.material === 'object') {
+      const mat = payload.material as Record<string, unknown>;
+      if (typeof mat.ticker === 'string' && exchangeCode) {
+        cxTicker = `${mat.ticker}.${exchangeCode}`;
+      }
     }
 
     if (!cxTicker || !exchangeCode) {
