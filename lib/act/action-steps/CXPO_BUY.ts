@@ -9,7 +9,7 @@
 //   unwatch()                           → removed (no subscription to clean up)
 
 import { act } from '../act-registry';
-import { fixed0, fixed02, clickElement, waitUntil, cxobStore } from '../_compat';
+import { fixed0, fixed02, fixed1, clickElement, waitUntil, cxobStore } from '../_compat';
 import { setInputValue } from '../../buffer-refresh/dom-helpers';
 import { fillAmount } from '../actions/cx-buy/utils';
 import { storagesStore, exchangesStore, warehousesStore, materialsStore } from '../_compat';
@@ -40,7 +40,7 @@ export const CXPO_BUY = act.addActionStep<Data>({
       let description = `Bid for ${fixed0(data.amount)} ${ticker} on ${exchange}`;
       if (isFinite(priceLimit)) {
         description += ` at price ${fixed02(data.priceLimit)}`;
-        description += ` (${fixed0(data.amount * data.priceLimit)} total cost)`;
+        description += ` (tot: ${fixed1(data.amount * data.priceLimit)})`;
       }
       return description;
     }
@@ -50,7 +50,7 @@ export const CXPO_BUY = act.addActionStep<Data>({
       description += ` with price limit ${fixed02(priceLimit)}`;
     }
     if (filled) {
-      description += ` (${fixed0(filled.cost)} total cost)`;
+      description += ` (tot: ${fixed1(filled.cost)})`;
     } else {
       description += ' (no price data yet)';
     }

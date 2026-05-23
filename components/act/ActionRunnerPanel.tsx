@@ -43,6 +43,11 @@ export function ActionRunnerPanel({ entries, status, isRunning }: Props) {
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Status row */}
+      {(isRunning || status) && (
+        <p className="text-xs text-apxm-muted truncate">{status}</p>
+      )}
+
       {/* Log area */}
       <div
         ref={logRef}
@@ -66,10 +71,6 @@ export function ActionRunnerPanel({ entries, status, isRunning }: Props) {
         )}
       </div>
 
-      {/* Status row */}
-      {(isRunning || status) && (
-        <p className="text-xs text-apxm-muted truncate">{status}</p>
-      )}
 
     </div>
   );
