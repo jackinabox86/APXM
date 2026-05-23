@@ -57,6 +57,35 @@ Registers a type → handler map for all game message types. Each handler update
 3. FIO fetch runs concurrently (fire-and-forget)
 4. Auto-refresh triggers after sites are loaded
 
+## Material Identifiers
+
+Materials have three distinct identifiers:
+
+| Identifier | Example | Notes |
+|---|---|---|
+| `ticker` | `COF`, `PWO`, `REP` | Short 3-letter code used in most game APIs |
+| `name` | `pioneerLuxuryDrink`, `pioneerLuxuryClothing`, `settlerLuxuryTools` | In-game identifier, used as i18n key |
+| display name | `"Caffeinated Infusion"`, `"Padded Work Overalls"`, `"Repair Kit"` | Localized string from `window['PrUn_i18n']` |
+
+The `Material` object is the bridge between all three — it carries `.ticker` and `.name` directly, and its `.name` is the key for the i18n display name lookup (`PrunI18N[Material.${material.name}.name]`).
+
+**Lookup helpers** (from refined-prun patterns):
+
+```typescript
+// ticker ↔ Material (materials.ts)
+materialsStore.getByTicker(ticker)   // ticker → Material
+materialsStore.getByName(name)       // in-game name → Material
+
+// Material ↔ display name (i18n.ts)
+getMaterialName(material)            // Material → localized display name
+getMaterialByName(displayName)       // localized display name → Material
+```
+
+Convert between any two identifiers via `Material`:
+`"COF" → getByTicker() → Material → getMaterialName() → "Caffeinated Infusion"`
+
+The i18n system (`window['PrUn_i18n']`) supports multiple languages — the same `Material` with `name: "Iron"` renders as "Hierro" in Spanish. Always use `getMaterialName()` for display rather than hardcoding English strings.
+
 ## Store Pattern
 
 Stores use immer middleware (mutate draft directly):

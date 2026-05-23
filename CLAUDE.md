@@ -68,6 +68,7 @@ Run `find docs/ -name "*.md" | sort` to see available docs. Read based on task:
 |------|------|
 | Adding/modifying UI components | `docs/components.md` |
 | Adding stores or message handlers | `docs/stores.md` |
+| Working with material identifiers (ticker / name / display name) | `docs/stores.md` |
 | Writing or fixing tests | `docs/testing.md` |
 | Action runner / mobile DOM interaction | `docs/mobile-integration.md` |
 | Debugging WebSocket bridge or coexistence with refined-prun | `docs/architecture.md` |
