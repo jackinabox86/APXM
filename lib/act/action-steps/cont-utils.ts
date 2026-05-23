@@ -40,16 +40,30 @@ export async function selectMaterial(container: Element, ticker: string): Promis
   )) as HTMLElement | null;
   console.log('[selectMaterial] suggestionsContainer found:', !!suggestionsContainer);
 
-  // Click the input rather than just focus — APEX's MaterialSelector transitions
-  // to "active" state (showing suggestions) on click, not on programmatic focus.
-  await clickElement(input);
+  // Focus via focus() — we know this works (activeElement confirmed in logs).
+  // click() loses focus to body so don't use it.
+  input.focus();
   await sleep(100);
-  console.log('[selectMaterial] container class after click:', (container as HTMLElement).className?.slice(0, 120));
-  console.log('[selectMaterial] activeElement after click:', document.activeElement?.className?.slice(0, 60));
-  setInputValue(input, ticker);
-  input.dispatchEvent(new Event('change', { bubbles: true }));
-  console.log('[selectMaterial] input.value after set:', input.value);
-  console.log('[selectMaterial] suggestionsContainer children before wait:', suggestionsContainer?.children.length, suggestionsContainer?.innerHTML.slice(0, 200));
+  console.log('[selectMaterial] activeElement after focus:', document.activeElement?.className?.slice(0, 60));
+
+  // Type character-by-character with full keyboard event sequence.
+  // APEX's autocomplete library listens for keydown/keyup to trigger suggestions;
+  // the native-setter + input-event approach used by setInputValue is not enough.
+  const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  for (const char of ticker) {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true, cancelable: true }));
+    input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true, cancelable: true }));
+    if (nativeSetter) {
+      nativeSetter.call(input, input.value + char);
+    } else {
+      input.value += char;
+    }
+    input.dispatchEvent(new InputEvent('input', { data: char, inputType: 'insertText', bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true, cancelable: true }));
+    await sleep(30);
+  }
+  console.log('[selectMaterial] input.value after typing:', input.value);
+  console.log('[selectMaterial] suggestionsContainer children before wait:', suggestionsContainer?.children.length);
 
   // Suggestions dropdown may render in a React portal at document.body rather
   // than inside the MaterialSelector container — search locally first (fast),
@@ -60,7 +74,7 @@ export async function selectMaterial(container: Element, ticker: string): Promis
     suggestionsList = await $(document.body, C.MaterialSelector.suggestionsList, 8000);
   }
   console.log('[selectMaterial] suggestionsList found:', !!suggestionsList, 'C.MaterialSelector.suggestionsList:', C.MaterialSelector?.suggestionsList);
-  console.log('[selectMaterial] suggestionsContainer children after wait:', suggestionsContainer?.children.length, suggestionsContainer?.innerHTML.slice(0, 200));
+  console.log('[selectMaterial] suggestionsContainer children after wait:', suggestionsContainer?.children.length);
   if (!suggestionsList) {
     if (suggestionsContainer) suggestionsContainer.style.display = '';
     return false;
