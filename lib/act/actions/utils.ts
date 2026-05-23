@@ -69,17 +69,17 @@ export function deserializeStorage(serializedName: string | undefined): PrunApi.
 
   name = extractName(serializedName, 'Cargo');
   if (name) {
-    return storagesStore.getByName(name);
+    return storagesStore.getByNameAndType(name, 'SHIP_STORE');
   }
 
   name = extractName(serializedName, 'FTL Store');
   if (name) {
-    return storagesStore.getByName(name);
+    return storagesStore.getByNameAndType(name, 'FTL_FUEL_STORE');
   }
 
   name = extractName(serializedName, 'STL Store');
   if (name) {
-    return storagesStore.getByName(name);
+    return storagesStore.getByNameAndType(name, 'STL_FUEL_STORE');
   }
 
   return undefined;

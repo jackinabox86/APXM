@@ -72,6 +72,9 @@ export const storagesStore = {
     if (!name) return undefined;
     return useStorageStore.getState().getAll().find((s) => s.name === name);
   },
+  getByNameAndType(name: string, type: PrunApi.StoreType): PrunApi.Store | undefined {
+    return useStorageStore.getState().getAll().find((s) => s.name === name && s.type === type);
+  },
 };
 
 // Derive the system natural ID from a CX exchange code, e.g. "AI1" → "AI".
@@ -181,8 +184,10 @@ export const exchangesStore = {
   },
 };
 
+export type Material = import('../../types/prun-api').PrunApi.Material;
+
 export const materialsStore = {
-  getByTicker(ticker: string): { weight: number; volume: number } | undefined {
+  getByTicker(ticker: string): Material | undefined {
     return useMaterialsStore.getState().getByTicker(ticker);
   },
 };

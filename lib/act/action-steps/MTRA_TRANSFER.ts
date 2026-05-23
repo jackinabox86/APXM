@@ -79,9 +79,21 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
 
     setStatus('Setting up MTRA buffer...');
     const container = await $(tile.anchor, C.MaterialSelector.container);
+    console.log('[MTRA] C.MaterialSelector:', JSON.stringify(C.MaterialSelector));
+    console.log('[MTRA] container found:', !!container);
 
+    // Bring the buffer on-screen for material selection: WebKit won't focus or
+    // deliver input events to elements that are off-screen or visibility:hidden.
+    const bufContainer = tile.anchor as HTMLElement;
+    const prevVisibility = bufContainer.style.visibility;
+    const prevLeft = bufContainer.style.left;
+    bufContainer.style.visibility = 'visible';
+    bufContainer.style.left = '0px';
     const ok = await selectMaterial(container!, ticker);
+
     if (!ok) {
+      bufContainer.style.left = prevLeft;
+      bufContainer.style.visibility = prevVisibility;
       fail(`Ticker ${ticker} not found in the material selector`);
       return;
     }
@@ -101,13 +113,21 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
           `(${fixed0(maxAmount)} of ${fixed0(amount)} transferred)`,
       );
       if (maxAmount === 0) {
+        bufContainer.style.left = prevLeft;
+        bufContainer.style.visibility = prevVisibility;
         skip();
         return;
       }
     }
     setInputValue(amountInput, Math.min(amount, maxAmount).toString());
 
-    const transferButton = await $(tile.anchor, C.Button.btn);
+    // Find the Transfer button by text — C.Button.btn matches all APEX buttons
+    // in #container and the first one may not be the Transfer button.
+    const allBtns = _$$<HTMLElement>(tile.anchor, C.Button.btn);
+    const transferButton = allBtns.find(
+      btn => btn.textContent?.trim().toUpperCase() === 'TRANSFER',
+    );
+    console.log('[MTRA] transferButton found:', !!transferButton, 'all btn texts:', allBtns.map(b => b.textContent?.trim()));
 
     await waitAct();
 
@@ -123,10 +143,13 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     };
     const currentAmount = getDestinationAmount();
 
-    await clickElement(transferButton!);
+    // Keep buffer on-screen through click and feedback: clicking a hidden/off-screen
+    // button can cause unintended navigation or form submission on mobile WebKit.
+    assert(transferButton, 'Transfer button not found');
+    await clickElement(transferButton);
     await waitActionFeedback(tile);
-
-    setStatus('Waiting for storage update...');
+    bufContainer.style.left = prevLeft;
+    bufContainer.style.visibility = prevVisibility;
     await waitUntil(() => getDestinationAmount() !== currentAmount);
 
     complete();
