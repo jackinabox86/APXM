@@ -9,6 +9,7 @@ import { Logger } from './logger';
 import { clickElement, sleep } from '../_compat';
 import type { PrunTile } from '../runtime-types';
 import { openMobileBuffer, closeMobileBuffer } from '../../mobile-buffer-navigator';
+import { clearMtraBufferCache } from '../action-steps/MTRA_TRANSFER';
 
 interface StepMachineOptions {
   log: Logger;
@@ -77,6 +78,8 @@ export class StepMachine {
   stop() {
     this.next = undefined;
     this.nextAct = undefined;
+    // Reset the MTRA buffer cache so a fresh run never skips the open step.
+    clearMtraBufferCache();
     // Close any open buffer and restore APEX before signalling the end.
     void closeMobileBuffer();
     this.options.onEnd();
