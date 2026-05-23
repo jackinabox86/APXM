@@ -52,6 +52,7 @@ This prevents React from hitting 50 nested updates. Without this, login would cr
 - **Stack navigation**: UI uses hierarchical stacks, not floating windows.
 - **#container div**: All mobile game UI lives here; APXM overlay manipulates display/margin/height to avoid covering game controls.
 - **Touch-first**: Tailwind mobile-first layout; pointer events tuned for touch.
+- **Form interaction requires on-screen buffer**: WebKit blocks focus and keyboard events on `visibility:hidden` or `left:-9999px` elements. Any action step driving an APEX form (typing, clicking) must restore `#container` to `visibility:visible; left:0px` for the duration. See `docs/mobile-integration.md` for the full pattern.
 
 ## CSS & Styling
 

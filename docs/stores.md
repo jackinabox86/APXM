@@ -5,11 +5,34 @@
 - `sites` — Player's bases/stations and their properties
 - `production` — Production lines and queued orders
 - `workforce` — Per-base workforce tiers and their needs
-- `storage` — Inventory items in STORE-type containers (excludes WAREHOUSE_STORE)
+- `storage` — All storage containers for the player (see StoreType table below)
 - `ships` — Fleet vessels, cargo, fuel state
 - `flights` — In-transit ship movements
 - `contracts` — Active/completed contracts
 - `balances` — Cash, wallet info
+
+### Storage Types (`PrunApi.StoreType`)
+
+Every `PrunApi.Store` has a `type` field that distinguishes its purpose:
+
+| `type`               | Meaning |
+|----------------------|---------|
+| `STORE`              | Base inventory (tied to a site via `addressableId = siteId`) |
+| `SHIP_STORE`         | Ship cargo hold |
+| `STL_FUEL_STORE`     | Ship STL fuel tank |
+| `FTL_FUEL_STORE`     | Ship FTL fuel tank |
+| `WAREHOUSE_STORE`    | CX warehouse |
+| `CONSTRUCTION_STORE` | Construction site materials |
+| `UPKEEP_STORE`       | Base upkeep buffer |
+| `VORTEX_FUEL_STORE`  | Vortex fuel tank |
+
+**Ship stores**: A ship has three stores sharing the same `name` (the ship's registration name). `storagesStore.getByName()` returns whichever comes first — use `storagesStore.getByNameAndType(name, type)` to target a specific one.
+
+**Burn calculations** use only `STORE` type. See `core/burn.ts`.
+
+### `PrunApi.Material.name` is camelCase
+
+`material.name` is an internal identifier like `"pioneerLuxuryDrink"`, not a display string. Use `material.ticker` for matching against APEX UI elements. The `toDisplayName()` helper in `lib/act/action-steps/cont-utils.ts` converts to spaced title-case if a display name is needed.
 
 ## Singleton Stores (normal Zustand)
 
