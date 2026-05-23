@@ -32,17 +32,17 @@ export function CashBalancePane() {
         <div>
           <button
             onClick={() => setExpanded((e) => !e)}
-            className="w-full flex items-center justify-between text-xs text-apxm-text cursor-pointer"
+            className="w-full flex items-center justify-between mb-0.5 cursor-pointer"
           >
-            <span className="font-medium">
-              CASH{highest ? ` (${highest.currency})` : ''} <span className="text-apxm-muted">…</span>
-            </span>
-            {highest && (
-              <span className="tabular-nums">{formatAmount(highest.amount)}</span>
+            <h3 className="text-sm font-semibold text-prun-yellow uppercase">Cash</h3>
+            {!expanded && highest && (
+              <span className="text-sm text-apxm-text tabular-nums">
+                ({highest.currency}) {formatAmount(highest.amount)}
+              </span>
             )}
           </button>
           {expanded && (
-            <div className="mt-1 space-y-0.5">
+            <div className="space-y-0.5">
               {balances.map((bal) => (
                 <div key={bal.currency} className="flex items-center justify-between">
                   <span className="text-xs text-apxm-muted">{bal.currency}</span>
