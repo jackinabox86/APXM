@@ -36,8 +36,8 @@ export function CashBalancePane() {
           >
             <h3 className="text-sm font-semibold text-prun-yellow uppercase">Cash</h3>
             {!expanded && highest && (
-              <span className="text-sm text-apxm-text tabular-nums">
-                ({highest.currency}) {formatAmount(highest.amount)}
+              <span className="text-xs text-apxm-text tabular-nums">
+                {highest.currency} {formatAmount(highest.amount)}
               </span>
             )}
           </button>
