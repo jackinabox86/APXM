@@ -84,18 +84,16 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
 
     // Bring the buffer on-screen for material selection: WebKit won't focus or
     // deliver input events to elements that are off-screen or visibility:hidden.
-    // The buffer flashes briefly but this is the only reliable way to trigger
-    // APEX's MaterialSelector suggestion logic on mobile.
     const bufContainer = tile.anchor as HTMLElement;
     const prevVisibility = bufContainer.style.visibility;
     const prevLeft = bufContainer.style.left;
     bufContainer.style.visibility = 'visible';
     bufContainer.style.left = '0px';
     const ok = await selectMaterial(container!, ticker);
-    bufContainer.style.left = prevLeft;
-    bufContainer.style.visibility = prevVisibility;
 
     if (!ok) {
+      bufContainer.style.left = prevLeft;
+      bufContainer.style.visibility = prevVisibility;
       fail(`Ticker ${ticker} not found in the material selector`);
       return;
     }
@@ -115,6 +113,8 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
           `(${fixed0(maxAmount)} of ${fixed0(amount)} transferred)`,
       );
       if (maxAmount === 0) {
+        bufContainer.style.left = prevLeft;
+        bufContainer.style.visibility = prevVisibility;
         skip();
         return;
       }
@@ -122,6 +122,7 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     setInputValue(amountInput, Math.min(amount, maxAmount).toString());
 
     const transferButton = await $(tile.anchor, C.Button.btn);
+    console.log('[MTRA] transferButton text:', (transferButton as HTMLElement)?.textContent?.trim());
 
     await waitAct();
 
@@ -137,10 +138,12 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     };
     const currentAmount = getDestinationAmount();
 
+    // Keep buffer on-screen through click and feedback: clicking a hidden/off-screen
+    // button can cause unintended navigation or form submission on mobile WebKit.
     await clickElement(transferButton!);
     await waitActionFeedback(tile);
-
-    setStatus('Waiting for storage update...');
+    bufContainer.style.left = prevLeft;
+    bufContainer.style.visibility = prevVisibility;
     await waitUntil(() => getDestinationAmount() !== currentAmount);
 
     complete();
