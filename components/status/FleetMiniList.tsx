@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useShipsStore } from '../../stores/entities/ships';
 import { getFlightByShipId } from '../../stores/entities/flights';
-import { Card, SectionHeader, StateTile } from '../shared';
+import { Card, SectionHeader } from '../shared';
 import { useGameState } from '../../stores/gameState';
 import { useConnectionStore } from '../../stores/connection';
 import { useConnectionStatus } from '../../hooks/useConnectionStatus';
@@ -11,12 +11,6 @@ import type { PrunApi } from '../../types/prun-api';
 
 type FleetStatus = 'idle' | 'arriving-soon' | 'in-transit';
 
-// Map status to StateTile label (all neutral for fleet)
-const statusTileLabels: Record<FleetStatus, string> = {
-  idle: 'Idle',
-  'arriving-soon': 'Arriving',
-  'in-transit': 'Transit',
-};
 
 interface ShipSummary {
   id: string;
@@ -89,13 +83,12 @@ export function FleetMiniList() {
       };
     });
 
-    // Sort: idle first, then arriving-soon by ETA, then in-transit by ETA
+    // Sort: non-idle by ETA ascending (closest first), idle at the bottom
     summaries.sort((a, b) => {
-      const statusOrder: Record<FleetStatus, number> = { idle: 0, 'arriving-soon': 1, 'in-transit': 2 };
-      const orderDiff = statusOrder[a.status] - statusOrder[b.status];
-      if (orderDiff !== 0) return orderDiff;
-
-      // Within same status, sort by ETA
+      const aIsIdle = a.status === 'idle';
+      const bIsIdle = b.status === 'idle';
+      if (aIsIdle && !bIsIdle) return 1;
+      if (!aIsIdle && bIsIdle) return -1;
       const etaA = a.etaMs ?? Infinity;
       const etaB = b.etaMs ?? Infinity;
       return etaA - etaB;
@@ -137,7 +130,6 @@ export function FleetMiniList() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <StateTile label={statusTileLabels[ship.status]} variant="neutral" />
               {ship.etaMs !== null && (
                 <span className="text-xs text-apxm-text/70 font-mono">
                   {formatEta(ship.etaMs)}
