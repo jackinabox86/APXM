@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, MaterialTile } from '../shared';
 import { useSettingsStore, DEFAULT_THRESHOLDS } from '../../stores/settings';
 import { testConnection, populateStoresFromFio, type FioProgressStep } from '../../lib/fio';
 import { clearAllCache } from '../../stores/cache';
 import { BUILD_VERSION } from '../../lib/constants';
 import { openMobileBuffer, closeMobileBuffer } from '../../lib/mobile-buffer-navigator';
+import { useRepairStatus, sortByAge } from '../repair/useRepairStatus';
+import { useSitesStore } from '../../stores/entities/sites';
+import { getEntityDisplayName } from '../../lib/address';
 
 type ConnectionStatus = 'untested' | 'testing' | 'valid' | 'invalid';
 
@@ -198,6 +201,20 @@ export function SettingsView() {
     setDebugStatus('Closed — APEX restored to the Stacks top level.');
     setDebugBusy(false);
   };
+
+  const repairStatuses = useRepairStatus();
+  const sortedRepair = useMemo(() =>
+    sortByAge(repairStatuses)
+      .filter((s) => s.oldestBuildingAgeDays !== null)
+      .map((s) => {
+        const site = useSitesStore.getState().getById(s.siteId);
+        return {
+          siteId: s.siteId,
+          name: site ? getEntityDisplayName(site.address) : s.siteId,
+          ageDays: s.oldestBuildingAgeDays as number,
+        };
+      }),
+  [repairStatuses]);
 
   const hasUnsavedChanges =
     username !== (fio.username ?? '') || apiKey !== (fio.apiKey ?? '');
@@ -450,6 +467,20 @@ export function SettingsView() {
           </div>
 
           {debugStatus && <p className="text-xs text-apxm-text">{debugStatus}</p>}
+
+          {sortedRepair.length > 0 && (
+            <div>
+              <p className="text-xs text-apxm-muted mb-1">Repair age — oldest repairable building per base</p>
+              <div className="space-y-0.5">
+                {sortedRepair.map((entry) => (
+                  <div key={entry.siteId} className="flex justify-between text-xs font-mono">
+                    <span className="text-apxm-text">{entry.name}</span>
+                    <span className="text-apxm-muted">{entry.ageDays.toFixed(1)}d</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </Card>
 
