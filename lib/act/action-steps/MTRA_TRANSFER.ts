@@ -121,8 +121,13 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
     }
     setInputValue(amountInput, Math.min(amount, maxAmount).toString());
 
-    const transferButton = await $(tile.anchor, C.Button.btn);
-    console.log('[MTRA] transferButton text:', (transferButton as HTMLElement)?.textContent?.trim());
+    // Find the Transfer button by text — C.Button.btn matches all APEX buttons
+    // in #container and the first one may not be the Transfer button.
+    const allBtns = _$$<HTMLElement>(tile.anchor, C.Button.btn);
+    const transferButton = allBtns.find(
+      btn => btn.textContent?.trim().toUpperCase() === 'TRANSFER',
+    );
+    console.log('[MTRA] transferButton found:', !!transferButton, 'all btn texts:', allBtns.map(b => b.textContent?.trim()));
 
     await waitAct();
 
@@ -140,7 +145,8 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
 
     // Keep buffer on-screen through click and feedback: clicking a hidden/off-screen
     // button can cause unintended navigation or form submission on mobile WebKit.
-    await clickElement(transferButton!);
+    assert(transferButton, 'Transfer button not found');
+    await clickElement(transferButton);
     await waitActionFeedback(tile);
     bufContainer.style.left = prevLeft;
     bufContainer.style.visibility = prevVisibility;
