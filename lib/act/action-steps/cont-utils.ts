@@ -50,6 +50,16 @@ export async function selectMaterial(container: Element, ticker: string): Promis
   // APEX's autocomplete library listens for keydown/keyup to trigger suggestions;
   // the native-setter + input-event approach used by setInputValue is not enough.
   const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+
+  // Clear any stale value left from a previous selection (e.g., buffer reuse
+  // after a skipped step). Without this, chars append to the old ticker.
+  if (input.value) {
+    if (nativeSetter) nativeSetter.call(input, '');
+    else input.value = '';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await sleep(50);
+  }
+
   for (const char of ticker) {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true, cancelable: true }));
     input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true, cancelable: true }));
