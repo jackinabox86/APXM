@@ -23,6 +23,15 @@ interface Data {
   amount: number;
 }
 
+// Tracks the MTRA buffer command that is currently open (off-screen) so
+// consecutive MTRA_TRANSFER steps for the same origin/dest can skip the
+// full buffer-open navigation and reuse the already-open form.
+let lastMtraCommand: string | null = null;
+
+export function clearMtraBufferCache(): void {
+  lastMtraCommand = null;
+}
+
 export const MTRA_TRANSFER = act.addActionStep<Data>({
   type: 'MTRA_TRANSFER',
   preProcessData: data => ({ ...data, ticker: data.ticker.toUpperCase() }),
@@ -70,11 +79,21 @@ export const MTRA_TRANSFER = act.addActionStep<Data>({
       return;
     }
 
-    const tile = await requestTile(
-      `MTRA from-${from.id.substring(0, 8)} to-${to.id.substring(0, 8)}`,
-    );
-    if (!tile) {
-      return;
+    const command = `MTRA from-${from.id.substring(0, 8)} to-${to.id.substring(0, 8)}`;
+
+    let tile: import('../runtime-types').PrunTile;
+    if (lastMtraCommand === command) {
+      // Same origin/dest as the previous transfer — the MTRA form is still open
+      // off-screen, so skip the buffer-open navigation and the "Open …" ACT press.
+      const anchor = document.getElementById('container') as HTMLElement | null;
+      assert(anchor, 'MTRA buffer anchor (#container) not found');
+      tile = { anchor };
+      setStatus('Reusing MTRA buffer...');
+    } else {
+      const newTile = await requestTile(command);
+      if (!newTile) return;
+      tile = newTile;
+      lastMtraCommand = command;
     }
 
     setStatus('Setting up MTRA buffer...');
