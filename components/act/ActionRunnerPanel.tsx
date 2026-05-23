@@ -11,10 +11,6 @@ interface Props {
   entries: LogEntry[];
   status: string;
   isRunning: boolean;
-  isActReady: boolean;
-  onAct: () => void;
-  onSkip: () => void;
-  onCancel: () => void;
 }
 
 const TAG_STYLES: Record<NonNullable<LogTag>, string> = {
@@ -36,15 +32,7 @@ function renderContent(content: LogContent): React.ReactNode {
   ));
 }
 
-export function ActionRunnerPanel({
-  entries,
-  status,
-  isRunning,
-  isActReady,
-  onAct,
-  onSkip,
-  onCancel,
-}: Props) {
+export function ActionRunnerPanel({ entries, status, isRunning }: Props) {
   const logRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to newest entry
@@ -55,6 +43,11 @@ export function ActionRunnerPanel({
 
   return (
     <div className="flex flex-col gap-2">
+      {/* Status row */}
+      {(isRunning || status) && (
+        <p className="text-xs text-apxm-muted truncate">{status}</p>
+      )}
+
       {/* Log area */}
       <div
         ref={logRef}
@@ -78,40 +71,7 @@ export function ActionRunnerPanel({
         )}
       </div>
 
-      {/* Status row */}
-      {(isRunning || status) && (
-        <p className="text-xs text-apxm-muted truncate">{status}</p>
-      )}
 
-      {/* Control buttons */}
-      {(isActReady || isRunning) && (
-        <div className="flex gap-2">
-          {isActReady && (
-            <button
-              onClick={onAct}
-              className="flex-1 min-h-touch px-4 py-2 text-sm rounded bg-prun-yellow text-apxm-bg font-semibold"
-            >
-              ACT
-            </button>
-          )}
-          {isRunning && (
-            <button
-              onClick={onSkip}
-              className="flex-1 min-h-touch px-4 py-2 text-sm rounded border border-apxm-accent text-apxm-muted font-semibold hover:border-prun-yellow hover:text-prun-yellow"
-            >
-              SKIP
-            </button>
-          )}
-          {isRunning && (
-            <button
-              onClick={onCancel}
-              className="flex-1 min-h-touch px-4 py-2 text-sm rounded border border-red-800 text-red-400 font-semibold hover:border-red-500"
-            >
-              CANCEL
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }

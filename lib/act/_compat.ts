@@ -217,6 +217,10 @@ export function fixed02(value: number): string {
   return value.toFixed(2);
 }
 
+export function fixed1(value: number): string {
+  return value.toFixed(1).replace(/\.0$/, '');
+}
+
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
