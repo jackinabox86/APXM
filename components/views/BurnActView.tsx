@@ -25,18 +25,20 @@ const EXCHANGES = ['AI1', 'CI1', 'CI2', 'IC1', 'NC1', 'NC2'] as const;
 const CX_STATION_IDS: Record<string, string> = { AI1: 'ANT', CI1: 'BEN', NC1: 'MOR', IC1: 'HRT' };
 
 const INPUT_CLS =
-  'w-full min-h-touch px-3 py-2 text-sm bg-apxm-bg border border-apxm-accent rounded ' +
+  'w-full px-2 py-1.5 text-sm bg-apxm-bg border border-apxm-accent rounded ' +
   'text-apxm-text placeholder:text-apxm-muted/50 outline-none focus:border-prun-yellow';
 const SELECT_CLS =
-  'w-full min-h-touch px-3 py-2 text-sm bg-apxm-bg border border-apxm-accent rounded ' +
+  'w-full px-2 py-1.5 text-sm bg-apxm-bg border border-apxm-accent rounded ' +
   'text-apxm-text outline-none focus:border-prun-yellow appearance-none';
-const LABEL_CLS = 'text-xs text-apxm-muted uppercase tracking-wide';
+const LABEL_CLS = 'text-xs text-apxm-muted uppercase tracking-wide whitespace-nowrap';
 const BTN_PRIMARY =
   'flex-1 min-h-touch px-4 py-2 text-sm rounded bg-prun-yellow text-apxm-bg font-semibold ' +
   'disabled:opacity-40 disabled:cursor-not-allowed';
 const BTN_SECONDARY =
   'flex-1 min-h-touch px-4 py-2 text-sm rounded border border-apxm-accent text-apxm-muted ' +
   'font-semibold hover:border-prun-yellow hover:text-prun-yellow disabled:opacity-40 disabled:cursor-not-allowed';
+const BTN_CANCEL =
+  'flex-1 min-h-touch px-4 py-2 text-sm rounded border border-red-800 text-red-400 font-semibold hover:border-red-500';
 
 export function BurnActView() {
   const setActiveTab = useGameState((s) => s.setActiveTab);
@@ -256,97 +258,105 @@ export function BurnActView() {
       </div>
 
       {/* Form */}
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <label className={LABEL_CLS}>Planet / Base</label>
-          <select
-            value={planet}
-            onChange={(e) => setPlanet(e.target.value)}
-            className={SELECT_CLS}
-          >
-            <option value="">— select base —</option>
-            {siteOptions.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
+        <label className={LABEL_CLS}>Base</label>
+        <select
+          value={planet}
+          onChange={(e) => setPlanet(e.target.value)}
+          className={SELECT_CLS}
+        >
+          <option value="">— select base —</option>
+          {siteOptions.map((o) => (
+            <option key={o.id} value={o.id}>{o.label}</option>
+          ))}
+        </select>
 
-        <div className="space-y-1">
-          <label className={LABEL_CLS}>Days of supplies</label>
-          <input
-            type="number"
-            min="1"
-            value={days}
-            onChange={(e) => setDays(e.target.value)}
-            className={INPUT_CLS}
-            placeholder="30"
-          />
-        </div>
+        <label className={LABEL_CLS}>Days</label>
+        <input
+          type="number"
+          min="1"
+          value={days}
+          onChange={(e) => setDays(e.target.value)}
+          className={INPUT_CLS}
+          placeholder="30"
+        />
 
-        <div className="space-y-1">
-          <label className={LABEL_CLS}>Exchange (blank = skip CX buy)</label>
-          <select
-            value={exchange}
-            onChange={(e) => setExchange(e.target.value)}
-            className={SELECT_CLS}
-          >
-            <option value="">— skip CX Buy —</option>
-            {EXCHANGES.map((ex) => (
-              <option key={ex} value={ex}>
-                {ex}
-              </option>
-            ))}
-          </select>
-        </div>
+        <label className={LABEL_CLS}>Exchange</label>
+        <select
+          value={exchange}
+          onChange={(e) => setExchange(e.target.value)}
+          className={SELECT_CLS}
+        >
+          <option value="">— skip CX Buy —</option>
+          {EXCHANGES.map((ex) => (
+            <option key={ex} value={ex}>{ex}</option>
+          ))}
+        </select>
 
         {/* MTRA origin — "CX Buy only" at bottom opts out of transfer */}
-        <div className="space-y-1">
-          <label className={LABEL_CLS}>MTRA Origin <span className="normal-case">(CX BUY ONLY = SKIP MTRA)</span></label>
-          <select
-            value={origin}
-            onChange={(e) => { setOrigin(e.target.value); setDest(''); }}
-            className={SELECT_CLS}
-          >
-            {storageOptions.map((o) => (
-              <option key={o.storage.id} value={o.value}>{o.value}</option>
-            ))}
-            <option value="">— CX Buy only —</option>
-          </select>
-        </div>
+        <label className={LABEL_CLS}>Origin</label>
+        <select
+          value={origin}
+          onChange={(e) => { setOrigin(e.target.value); setDest(''); }}
+          className={SELECT_CLS}
+        >
+          {storageOptions.map((o) => (
+            <option key={o.storage.id} value={o.value}>{o.value}</option>
+          ))}
+          <option value="">— CX Buy only —</option>
+        </select>
 
         {/* MTRA destination — filtered to same location as origin */}
-        <div className="space-y-1">
-          <label className={LABEL_CLS}>MTRA Destination</label>
-          <select
-            value={dest}
-            onChange={(e) => setDest(e.target.value)}
-            className={SELECT_CLS}
-            disabled={!origin}
-          >
-            {!origin ? (
-              <option value="">— no MTRA —</option>
-            ) : (
-              <>
-                <option value="">— select destination —</option>
-                {destOptions.map((o) => (
-                  <option key={o.storage.id} value={o.value}>{o.value}</option>
-                ))}
-              </>
-            )}
-          </select>
-        </div>
+        <label className={LABEL_CLS}>Destination</label>
+        <select
+          value={dest}
+          onChange={(e) => setDest(e.target.value)}
+          className={SELECT_CLS}
+          disabled={!origin}
+        >
+          {!origin ? (
+            <option value="">— no MTRA —</option>
+          ) : (
+            <>
+              <option value="">— select destination —</option>
+              {destOptions.map((o) => (
+                <option key={o.storage.id} value={o.value}>{o.value}</option>
+              ))}
+            </>
+          )}
+        </select>
       </div>
 
-      {/* Action buttons */}
+      {/* Action buttons — swaps to runner controls while executing */}
       <div className="flex gap-2">
-        <button onClick={handlePreview} disabled={!canRun} className={BTN_SECONDARY}>
-          PREVIEW
-        </button>
-        <button onClick={handleExecute} disabled={!canRun} className={BTN_PRIMARY}>
-          EXECUTE
-        </button>
+        {isRunning || isActReady ? (
+          <>
+            {isActReady && (
+              <button onClick={() => runner.current.act()} className={BTN_PRIMARY}>
+                ACT
+              </button>
+            )}
+            {isRunning && (
+              <button onClick={() => runner.current.skip()} className={BTN_SECONDARY}>
+                SKIP
+              </button>
+            )}
+            {isRunning && (
+              <button onClick={() => runner.current.cancel()} className={BTN_CANCEL}>
+                CANCEL
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <button onClick={handlePreview} disabled={!canRun} className={BTN_SECONDARY}>
+              PREVIEW
+            </button>
+            <button onClick={handleExecute} disabled={!canRun} className={BTN_PRIMARY}>
+              EXECUTE
+            </button>
+          </>
+        )}
       </div>
 
       {/* Runner panel */}
@@ -354,10 +364,6 @@ export function BurnActView() {
         entries={entries}
         status={status}
         isRunning={isRunning}
-        isActReady={isActReady}
-        onAct={() => runner.current.act()}
-        onSkip={() => runner.current.skip()}
-        onCancel={() => runner.current.cancel()}
       />
     </div>
   );
