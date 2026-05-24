@@ -31,8 +31,6 @@ export const OPEN_SFC = act.addActionStep<Data>({
   type: 'OPEN_SFC',
   description: data => buildMessage(data),
   execute: async ctx => {
-    const { data, log, complete } = ctx;
-    log.info(buildMessage(data));
-    complete();
+    ctx.complete();
   },
 });
