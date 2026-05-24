@@ -1,16 +1,40 @@
 import { useMemo } from 'react';
 import { useSiteBurns, sortByUrgency } from '../burn';
-import { Card, SectionHeader, TimeBadge } from '../shared';
+import { Card, TimeBadge } from '../shared';
 import { useGameState } from '../../stores/gameState';
 import { useConnectionStore } from '../../stores/connection';
 import { useSitesStore } from '../../stores/entities/sites';
 import { useWorkforceStore } from '../../stores/entities/workforce';
 import { useProductionStore } from '../../stores/entities/production';
 import { useStorageStore } from '../../stores/entities/storage';
+import { useRepairStatus } from '../repair/useRepairStatus';
+
+const repairAgeBgColors = {
+  critical: 'bg-status-critical/20 text-status-critical',
+  warning: 'bg-status-warning/20 text-status-warning',
+  ok: 'bg-status-ok/20 text-status-ok',
+} as const;
+
+function repairUrgency(days: number): 'ok' | 'warning' | 'critical' {
+  if (days >= 60) return 'critical';
+  if (days >= 50) return 'warning';
+  return 'ok';
+}
+
+function RepairAgeBadge({ days }: { days: number | null }) {
+  if (days === null) return <span className="text-xs text-apxm-muted">—</span>;
+  const urgency = repairUrgency(days);
+  return (
+    <span className={`px-2 py-0.5 text-xs font-medium ${repairAgeBgColors[urgency]}`}>
+      {Math.ceil(days)}d
+    </span>
+  );
+}
 
 export function BasesMiniList() {
   const { setActiveTab } = useGameState();
   const siteBurns = useSiteBurns();
+  const repairStatuses = useRepairStatus();
 
   const apexUnresponsive = useConnectionStore((s) => s.apexUnresponsive);
   const sitesFetched = useSitesStore((s) => s.fetched);
@@ -23,7 +47,11 @@ export function BasesMiniList() {
     return sorted.slice(0, 5);
   }, [siteBurns]);
 
-  // Determine loading state for empty-state message
+  const repairBySite = useMemo(
+    () => new Map(repairStatuses.map((r) => [r.siteId, r.oldestBuildingAgeDays])),
+    [repairStatuses]
+  );
+
   const emptyMessage = apexUnresponsive && !sitesFetched
     ? { text: 'APEX not responding', pulse: false }
     : !sitesFetched
@@ -32,10 +60,23 @@ export function BasesMiniList() {
         ? { text: 'Loading burn data...', pulse: true }
         : { text: 'No base data available', pulse: false };
 
+  const header = (
+    <div className="flex items-center mb-0.5">
+      <button
+        onClick={() => setActiveTab('bases')}
+        className="text-sm font-semibold text-prun-yellow uppercase flex-1 text-left"
+      >
+        Bases
+      </button>
+      <span className="text-xs font-semibold text-apxm-muted uppercase w-10 text-center">Burn</span>
+      <span className="text-xs font-semibold text-apxm-muted uppercase w-10 text-center ml-1">Repair</span>
+    </div>
+  );
+
   if (topBases.length === 0) {
     return (
       <Card>
-        <SectionHeader title="Bases" onViewAll={() => setActiveTab('bases')} />
+        {header}
         <p className={`text-xs ${apexUnresponsive && !sitesFetched ? 'text-status-critical' : 'text-apxm-muted'} ${emptyMessage.pulse ? 'animate-pulse' : ''}`}>
           {emptyMessage.text}
         </p>
@@ -45,19 +86,24 @@ export function BasesMiniList() {
 
   return (
     <Card>
-      <SectionHeader title="Bases" onViewAll={() => setActiveTab('bases')} />
+      {header}
       <div className="space-y-0">
         {topBases.map((site) => (
-          <div key={site.siteId} className="flex items-center justify-between py-1">
+          <div key={site.siteId} className="flex items-center py-1">
             <span className="text-sm text-apxm-text truncate flex-1 mr-2">{site.siteName}</span>
-            {site.mostUrgent ? (
-              <TimeBadge
-                daysRemaining={site.mostUrgent.daysRemaining}
-                urgency={site.mostUrgent.urgency}
-              />
-            ) : (
-              <span className="text-xs text-apxm-muted">OK</span>
-            )}
+            <div className="w-10 flex justify-center">
+              {site.mostUrgent ? (
+                <TimeBadge
+                  daysRemaining={site.mostUrgent.daysRemaining}
+                  urgency={site.mostUrgent.urgency}
+                />
+              ) : (
+                <span className="text-xs text-apxm-muted">OK</span>
+              )}
+            </div>
+            <div className="w-10 flex justify-center ml-1">
+              <RepairAgeBadge days={repairBySite.get(site.siteId) ?? null} />
+            </div>
           </div>
         ))}
       </div>
