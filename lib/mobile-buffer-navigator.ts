@@ -150,6 +150,21 @@ export async function openMobileBuffer(command: string): Promise<boolean> {
 }
 
 /**
+ * Make the currently open buffer visible without closing it.
+ *
+ * Call this after automated form interaction on a hidden buffer (e.g. filling
+ * in a destination) when you want the user to be able to see and interact with
+ * the buffer directly. savedStyles is preserved so that closeMobileBuffer can
+ * still restore the original container styles later.
+ */
+export function showMobileBufferContents(): void {
+  const container = getContainer();
+  if (!container) return;
+  container.style.visibility = 'visible';
+  container.style.left = '0px';
+}
+
+/**
  * Close the current buffer: dismiss any leftover add-card dialog, navigate back
  * to the Stacks top level, and restore #container to its pre-open styles.
  *

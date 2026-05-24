@@ -142,6 +142,7 @@ export class StepMachine {
           }
         },
         requestTile: async command => await this.requestBuffer(command),
+        openTileSilent: async command => await this.openBufferSilent(command),
       });
     } catch (e) {
       if (e !== AssertionError) {
@@ -149,6 +150,18 @@ export class StepMachine {
       }
       this.stop();
     }
+  }
+
+  private async openBufferSilent(command: string): Promise<PrunTile | undefined> {
+    this.options.onStatusChanged(`Opening ${command}...`);
+    const opened = await openMobileBuffer(command);
+    const anchor = document.getElementById('container');
+    if (!opened || !anchor) {
+      this.log.error(`Failed to open ${command}`);
+      this.stop();
+      return undefined;
+    }
+    return { anchor };
   }
 
   private async requestBuffer(command: string): Promise<PrunTile | undefined> {

@@ -44,6 +44,7 @@ export function BurnActView() {
   const setActiveTab = useGameState((s) => s.setActiveTab);
   const activeActPlanet = useGameState((s) => s.activeActPlanet);
   const setActiveActPlanet = useGameState((s) => s.setActiveActPlanet);
+  const setApexVisible = useGameState((s) => s.setApexVisible);
 
   // Stable selector — getAll() creates a new array every call so subscribing
   // to lastUpdated instead avoids React 19 useSyncExternalStore tearing loops.
@@ -331,6 +332,11 @@ export function BurnActView() {
       <div className="flex gap-2">
         {isRunning || isActReady ? (
           <>
+            {isActReady && (
+              <button onClick={() => setApexVisible(true)} className={BTN_SECONDARY}>
+                Show APEX
+              </button>
+            )}
             {isActReady && (
               <button onClick={() => runner.current.act()} className={BTN_PRIMARY}>
                 ACT

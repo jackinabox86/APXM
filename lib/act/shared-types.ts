@@ -59,6 +59,8 @@ export interface ActionStepExecuteContext<T> extends ActionRunnerContext<T> {
   fail: (message?: string) => void;
   assert: AssertFn;
   requestTile: (Command: string) => Promise<PrunTile | undefined>;
+  /** Open a buffer without prompting the user first (for automated steps). */
+  openTileSilent: (command: string) => Promise<PrunTile | undefined>;
 }
 
 export const configurableValue = 'Configure on Execution';
