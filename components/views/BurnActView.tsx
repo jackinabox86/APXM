@@ -9,6 +9,7 @@ import { useShipsStore } from '../../stores/entities/ships';
 import { useWarehouseStore } from '../../stores/warehouses';
 import { useExchangeStore } from '../../stores/exchanges';
 import { useGameState } from '../../stores/gameState';
+import { useSettingsStore } from '../../stores/settings';
 import { getEntityDisplayName } from '../../lib/address';
 import { serializeStorage, atSameLocation } from '../../lib/act/actions/utils';
 import { setupActGlobals } from '../../lib/act/globals-setup';
@@ -56,9 +57,11 @@ export function BurnActView() {
   // When launched from a card button, activeActPlanet is pre-set; hide the selector.
   const preseeded = useRef(activeActPlanet !== null);
 
+  const resupplyDays = useSettingsStore((s) => s.burnThresholds.resupply);
+
   // Form state
   const [planet, setPlanet] = useState(activeActPlanet ?? '');
-  const [days, setDays] = useState('10');
+  const [days, setDays] = useState(String(resupplyDays));
   const [exchange, setExchange] = useState('AI1');
   const [origin, setOrigin] = useState('');
   const [dest, setDest] = useState('');
