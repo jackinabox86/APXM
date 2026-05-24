@@ -4,16 +4,22 @@
 // - Buffer is opened via requestTile (the same proven path used by MTRA_TRANSFER).
 //   The user taps ACT once to trigger the automated open; the runner then drives
 //   the SFC form itself without any further manual interaction.
-// - If a destination is provided, the AddressSelector input is filled and the
-//   first autosuggest entry is clicked automatically (buffer temporarily made
-//   visible to satisfy WebKit's event restrictions, per mobile-integration.md).
+// - If a destination is provided, the AddressSelector input is filled using
+//   setInputValue (native-setter + 'input' event). This fires the same
+//   'input-changed' handler that APEX's autocomplete uses (confirmed by console:
+//   "suggestions fetch requested: ... -> input-changed"), and avoids making the
+//   buffer visible — which would allow keyboard events to bubble into APEX's
+//   navigation handlers and cause the buffer to navigate back unexpectedly.
+//   Programmatic .click() on the suggestion works even with the buffer hidden
+//   (WebKit only blocks focus/keyboard events on hidden elements, not mouse clicks).
+// - Destination should be the planet's natural ID (e.g. "ZV-307D") for reliable
+//   autocomplete matching.
 // - showMobileBufferContents() leaves the SFC buffer visible in APEX so the
-//   user can see it and tap TAKE FLIGHT after switching views via Show APEX
-//   (already present in the APXM header).
+//   user can see it and tap TAKE FLIGHT after switching via Show APEX in the header.
 
 import { act } from '../act-registry';
 import { useShipsStore } from '../../../stores/entities/ships';
-import { focusElement, clickElement, sleep } from '../_compat';
+import { clickElement, sleep } from '../_compat';
 import { setInputValue } from '../../buffer-refresh/dom-helpers';
 import { showMobileBufferContents } from '../../mobile-buffer-navigator';
 import type { AssertFn } from '../shared-types';
@@ -50,46 +56,20 @@ export const OPEN_SFC = act.addActionStep<Data>({
     // Auto-fill destination if one was specified.
     if (data.destination) {
       setStatus(`Setting destination to ${data.destination}...`);
-      const bufContainer = tile.anchor as HTMLElement;
 
-      // WebKit requires visibility:visible for focus and input events
-      // (see docs/mobile-integration.md §1).
-      const prevVisibility = bufContainer.style.visibility;
-      const prevLeft = bufContainer.style.left;
-      bufContainer.style.visibility = 'visible';
-      bufContainer.style.left = '0px';
-
-      // The SFC destination field uses the AddressSelector component.
-      // C.AddressSelector.input is populated from APEX's injected CSS —
-      // the same class hash is present on both mobile and desktop builds.
+      // Find the destination AddressSelector input inside the SFC buffer.
+      // C.AddressSelector.input is populated from APEX's injected CSS.
       const input = _$$<HTMLInputElement>(tile.anchor, C.AddressSelector.input)[0];
       if (input) {
-        focusElement(input);
-        await sleep(100);
+        // Use setInputValue (native-setter + 'input' event) while the buffer stays
+        // hidden. This fires APEX's autocomplete 'input-changed' handler without
+        // making the buffer visible — keeping the buffer visible during typing
+        // allows keyboard events to bubble into APEX's navigation handlers and
+        // causes the buffer to navigate back to the card list.
+        setInputValue(input, data.destination);
+        await sleep(500); // allow the autocomplete fetch to complete
 
-        // Clear any existing value then type character-by-character.
-        // APEX's AddressSelector autocomplete listens for keydown/keyup events,
-        // matching the MaterialSelector pattern in cont-utils.ts.
-        const nativeSetter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          'value',
-        )?.set;
-        if (nativeSetter) nativeSetter.call(input, '');
-        else input.value = '';
-        input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        await sleep(50);
-
-        for (const char of data.destination) {
-          input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true, cancelable: true }));
-          input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true, cancelable: true }));
-          if (nativeSetter) nativeSetter.call(input, input.value + char);
-          else input.value += char;
-          input.dispatchEvent(new InputEvent('input', { data: char, inputType: 'insertText', bubbles: true }));
-          input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true, cancelable: true }));
-          await sleep(30);
-        }
-
-        // Wait for the autosuggest portal to populate.
+        // Find the first autosuggest entry. The portal may be outside #container.
         const portal =
           (document.getElementById('autosuggest-portal') as HTMLElement | null) ?? document.body;
         const suggestion = (await $(
@@ -99,6 +79,8 @@ export const OPEN_SFC = act.addActionStep<Data>({
         )) as HTMLElement | null;
 
         if (suggestion) {
+          // Programmatic .click() works on hidden elements — WebKit only blocks
+          // focus and keyboard events on visibility:hidden / off-screen elements.
           await clickElement(suggestion);
           log.info(`Destination set: ${data.destination}`);
         } else {
@@ -107,10 +89,6 @@ export const OPEN_SFC = act.addActionStep<Data>({
       } else {
         log.warning('SFC address input not found — set destination manually');
       }
-
-      // Restore hidden position before revealing via showMobileBufferContents.
-      bufContainer.style.left = prevLeft;
-      bufContainer.style.visibility = prevVisibility;
     }
 
     // Leave the SFC buffer visible in APEX so the user can see and interact
@@ -118,7 +96,7 @@ export const OPEN_SFC = act.addActionStep<Data>({
     showMobileBufferContents();
 
     await waitAct(
-      `SFC for ${shipLabel}${destMsg} ready — tap Show APEX to view, take flight, return to APXM, then tap ACT`,
+      `SFC for ${shipLabel}${destMsg} ready — tap Show APEX, take flight, return to APXM, then tap ACT`,
     );
     complete();
   },
