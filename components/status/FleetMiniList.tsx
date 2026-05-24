@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useShipsStore } from '../../stores/entities/ships';
 import { getFlightByShipId } from '../../stores/entities/flights';
-import { Card, SectionHeader } from '../shared';
+import { Card, SectionHeader, StateTile } from '../shared';
 import { useGameState } from '../../stores/gameState';
 import { useConnectionStore } from '../../stores/connection';
 import { useConnectionStatus } from '../../hooks/useConnectionStatus';
@@ -130,6 +130,9 @@ export function FleetMiniList() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              {ship.status === 'idle' && (
+                <StateTile label="Idle" variant="neutral" />
+              )}
               {ship.etaMs !== null && (
                 <span className="text-xs text-apxm-text/70 font-mono">
                   {formatEta(ship.etaMs)}
