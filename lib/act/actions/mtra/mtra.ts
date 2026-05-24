@@ -72,7 +72,8 @@ act.addAction<Config>({
 
     if (dest.type === 'SHIP_STORE' && !PRUNPLANNER_PACKAGES.includes(packageName)) {
       const planet = getMaterialGroupPlanet(data.group);
-      emitStep(OPEN_SFC({ shipId: dest.addressableId, destination: planet }));
+      const label = packageName.startsWith('Repair') ? 'Repair' : 'Resupply';
+      emitStep(OPEN_SFC({ shipId: dest.addressableId, destination: planet, label }));
     }
   },
 });
