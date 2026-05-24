@@ -5,6 +5,7 @@ import {
   calculateProductionRates,
   calculateWorkforceConsumption,
   getInventoryFromStores,
+  getInTransitShipCargo,
   classifyBurnType,
   classifyBurnStatus,
   classifyUrgency,
@@ -21,18 +22,21 @@ import { useSitesStore } from '../../stores/entities/sites';
 import { useProductionStore } from '../../stores/entities/production';
 import { useWorkforceStore } from '../../stores/entities/workforce';
 import { useStorageStore } from '../../stores/entities/storage';
+import { useShipsStore } from '../../stores/entities/ships';
+import { useFlightsStore } from '../../stores/entities/flights';
 import {
   createProductionOrder,
   createTestProductionLine,
   createWorkforce,
   createNeed,
   createMaterial,
-
+  createMaterialAmountValue,
   createTestStorage,
   createStoreItem,
   createAddress,
   createTestSite,
-
+  createTestShip,
+  createTestFlight,
   resetIdCounter,
   createStorageWithItems,
   createOrderWithIO,
@@ -51,6 +55,8 @@ describe('burn.ts', () => {
     useProductionStore.getState().clear();
     useWorkforceStore.getState().clear();
     useStorageStore.getState().clear();
+    useShipsStore.getState().clear();
+    useFlightsStore.getState().clear();
   });
 
   // ==========================================================================
@@ -1299,6 +1305,248 @@ describe('burn.ts', () => {
       expect(drfBurn?.productionOutput).toBe(10);
       expect(drfBurn?.productionInput).toBe(10);
       expect(drfBurn?.daysRemaining).toBe(Infinity);
+    });
+  });
+
+  describe('getInTransitShipCargo', () => {
+    it('returns empty map when no ships exist', () => {
+      const address = createAddress({ planetName: 'Montem' });
+      expect(getInTransitShipCargo(address).size).toBe(0);
+    });
+
+    it('returns empty map when ship has no active flight (docked)', () => {
+      const ship = createTestShip({ flightId: null });
+      useShipsStore.getState().setOne(ship);
+
+      const address = createAddress({ planetName: 'Montem' });
+      expect(getInTransitShipCargo(address).size).toBe(0);
+    });
+
+    it('returns empty map when ship is flying to a different planet', () => {
+      const ship = createTestShip({ flightId: 'flight-1' });
+      const flight = createTestFlight({
+        id: 'flight-1',
+        shipId: ship.id,
+        destination: createAddress({ planetName: 'Promitor' }),
+      });
+      const shipStore = createTestStorage({
+        id: ship.idShipStore,
+        addressableId: ship.id,
+        type: 'SHIP_STORE',
+        items: [createStoreItem({ quantity: createMaterialAmountValue({ material: createMaterial({ ticker: 'RAT' }), amount: 100 }) })],
+      });
+      useShipsStore.getState().setOne(ship);
+      useFlightsStore.getState().setOne(flight);
+      useStorageStore.getState().setOne(shipStore);
+
+      const montemAddress = createAddress({ planetName: 'Montem' });
+      expect(getInTransitShipCargo(montemAddress).size).toBe(0);
+    });
+
+    it('returns cargo from ship flying to matching planet', () => {
+      const ship = createTestShip({ flightId: 'flight-1' });
+      const flight = createTestFlight({
+        id: 'flight-1',
+        shipId: ship.id,
+        destination: createAddress({ planetName: 'Montem' }),
+      });
+      const shipStore = createTestStorage({
+        id: ship.idShipStore,
+        addressableId: ship.id,
+        type: 'SHIP_STORE',
+        items: [
+          createStoreItem({ quantity: createMaterialAmountValue({ material: createMaterial({ ticker: 'RAT' }), amount: 100 }) }),
+          createStoreItem({ quantity: createMaterialAmountValue({ material: createMaterial({ ticker: 'DW' }), amount: 50 }) }),
+        ],
+      });
+      useShipsStore.getState().setOne(ship);
+      useFlightsStore.getState().setOne(flight);
+      useStorageStore.getState().setOne(shipStore);
+
+      const cargo = getInTransitShipCargo(createAddress({ planetName: 'Montem' }));
+      expect(cargo.get('RAT')).toBe(100);
+      expect(cargo.get('DW')).toBe(50);
+    });
+
+    it('accumulates cargo from multiple ships en route to same planet', () => {
+      const ship1 = createTestShip({ id: 'ship-1', flightId: 'flight-1' });
+      const ship2 = createTestShip({ id: 'ship-2', flightId: 'flight-2' });
+      const flight1 = createTestFlight({ id: 'flight-1', shipId: 'ship-1', destination: createAddress({ planetName: 'Montem' }) });
+      const flight2 = createTestFlight({ id: 'flight-2', shipId: 'ship-2', destination: createAddress({ planetName: 'Montem' }) });
+      const store1 = createTestStorage({
+        id: ship1.idShipStore,
+        addressableId: 'ship-1',
+        type: 'SHIP_STORE',
+        items: [createStoreItem({ quantity: createMaterialAmountValue({ material: createMaterial({ ticker: 'RAT' }), amount: 80 }) })],
+      });
+      const store2 = createTestStorage({
+        id: ship2.idShipStore,
+        addressableId: 'ship-2',
+        type: 'SHIP_STORE',
+        items: [createStoreItem({ quantity: createMaterialAmountValue({ material: createMaterial({ ticker: 'RAT' }), amount: 60 }) })],
+      });
+      useShipsStore.getState().setAll([ship1, ship2]);
+      useFlightsStore.getState().setAll([flight1, flight2]);
+      useStorageStore.getState().setAll([store1, store2]);
+
+      const cargo = getInTransitShipCargo(createAddress({ planetName: 'Montem' }));
+      expect(cargo.get('RAT')).toBe(140); // 80 + 60
+    });
+
+    it('only counts ship flying to site planet, not ship flying elsewhere', () => {
+      const ship1 = createTestShip({ id: 'ship-1', flightId: 'flight-1' });
+      const ship2 = createTestShip({ id: 'ship-2', flightId: 'flight-2' });
+      const flight1 = createTestFlight({ id: 'flight-1', shipId: 'ship-1', destination: createAddress({ planetName: 'Montem' }) });
+      const flight2 = createTestFlight({ id: 'flight-2', shipId: 'ship-2', destination: createAddress({ planetName: 'Promitor' }) });
+      const store1 = createTestStorage({
+        id: ship1.idShipStore,
+        addressableId: 'ship-1',
+        type: 'SHIP_STORE',
+        items: [createStoreItem({ quantity: createMaterialAmountValue({ material: createMaterial({ ticker: 'RAT' }), amount: 100 }) })],
+      });
+      const store2 = createTestStorage({
+        id: ship2.idShipStore,
+        addressableId: 'ship-2',
+        type: 'SHIP_STORE',
+        items: [createStoreItem({ quantity: createMaterialAmountValue({ material: createMaterial({ ticker: 'RAT' }), amount: 999 }) })],
+      });
+      useShipsStore.getState().setAll([ship1, ship2]);
+      useFlightsStore.getState().setAll([flight1, flight2]);
+      useStorageStore.getState().setAll([store1, store2]);
+
+      const cargo = getInTransitShipCargo(createAddress({ planetName: 'Montem' }));
+      expect(cargo.get('RAT')).toBe(100); // only ship-1
+    });
+
+    it('returns empty map when site address has no planet', () => {
+      const stationAddress = { lines: [{ type: 'STATION' as const, entity: { id: 's1', naturalId: 'CX', name: 'Commodity Exchange' } }] };
+      expect(getInTransitShipCargo(stationAddress).size).toBe(0);
+    });
+  });
+
+  describe('calculateSiteBurn (ship cargo integration)', () => {
+    const siteId = 'test-site';
+
+    beforeEach(() => {
+      const site = createTestSite({
+        siteId,
+        address: createAddress({ planetName: 'Montem' }),
+      });
+      useSitesStore.getState().setOne(site);
+    });
+
+    it('includes in-transit ship cargo in inventory and extends burn days', () => {
+      const workforce: WorkforceEntity = {
+        siteId,
+        address: createAddress({ planetName: 'Montem' }),
+        workforces: [
+          createWorkforce({
+            needs: [
+              createNeed({ material: createMaterial({ ticker: 'RAT' }), unitsPerInterval: 10 }),
+            ],
+          }),
+        ],
+      };
+      useWorkforceStore.getState().setOne(workforce);
+
+      // Base store: 20 RAT → 2 days at 10/day
+      const baseStore = createStorageWithItems(siteId, [{ ticker: 'RAT', amount: 20 }]);
+      useStorageStore.getState().setOne(baseStore);
+
+      // Ship en route to Montem with 80 RAT → adds 8 more days (total 10)
+      const ship = createTestShip({ flightId: 'flight-1' });
+      const flight = createTestFlight({
+        id: 'flight-1',
+        shipId: ship.id,
+        destination: createAddress({ planetName: 'Montem' }),
+      });
+      const shipStore = createTestStorage({
+        id: ship.idShipStore,
+        addressableId: ship.id,
+        type: 'SHIP_STORE',
+        items: [createStoreItem({ quantity: createMaterialAmountValue({ material: createMaterial({ ticker: 'RAT' }), amount: 80 }) })],
+      });
+      useShipsStore.getState().setOne(ship);
+      useFlightsStore.getState().setOne(flight);
+      useStorageStore.getState().setOne(shipStore);
+
+      const result = calculateSiteBurn(siteId);
+      const ratBurn = result.burns.find((b) => b.materialTicker === 'RAT');
+      expect(ratBurn?.inventoryAmount).toBe(100); // 20 + 80
+      expect(ratBurn?.daysRemaining).toBe(10);    // 100 / 10
+    });
+
+    it('does not include cargo from ship flying to a different planet', () => {
+      const workforce: WorkforceEntity = {
+        siteId,
+        address: createAddress({ planetName: 'Montem' }),
+        workforces: [
+          createWorkforce({
+            needs: [
+              createNeed({ material: createMaterial({ ticker: 'RAT' }), unitsPerInterval: 10 }),
+            ],
+          }),
+        ],
+      };
+      useWorkforceStore.getState().setOne(workforce);
+
+      const baseStore = createStorageWithItems(siteId, [{ ticker: 'RAT', amount: 20 }]);
+      useStorageStore.getState().setOne(baseStore);
+
+      // Ship flying to Promitor, not Montem
+      const ship = createTestShip({ flightId: 'flight-1' });
+      const flight = createTestFlight({
+        id: 'flight-1',
+        shipId: ship.id,
+        destination: createAddress({ planetName: 'Promitor' }),
+      });
+      const shipStore = createTestStorage({
+        id: ship.idShipStore,
+        addressableId: ship.id,
+        type: 'SHIP_STORE',
+        items: [createStoreItem({ quantity: createMaterialAmountValue({ material: createMaterial({ ticker: 'RAT' }), amount: 500 }) })],
+      });
+      useShipsStore.getState().setOne(ship);
+      useFlightsStore.getState().setOne(flight);
+      useStorageStore.getState().setOne(shipStore);
+
+      const result = calculateSiteBurn(siteId);
+      const ratBurn = result.burns.find((b) => b.materialTicker === 'RAT');
+      expect(ratBurn?.inventoryAmount).toBe(20); // only base store
+      expect(ratBurn?.daysRemaining).toBe(2);
+    });
+
+    it('does not include cargo from docked ship (no flightId)', () => {
+      const workforce: WorkforceEntity = {
+        siteId,
+        address: createAddress({ planetName: 'Montem' }),
+        workforces: [
+          createWorkforce({
+            needs: [
+              createNeed({ material: createMaterial({ ticker: 'RAT' }), unitsPerInterval: 10 }),
+            ],
+          }),
+        ],
+      };
+      useWorkforceStore.getState().setOne(workforce);
+
+      const baseStore = createStorageWithItems(siteId, [{ ticker: 'RAT', amount: 20 }]);
+      useStorageStore.getState().setOne(baseStore);
+
+      // Ship docked at Montem (flightId null)
+      const ship = createTestShip({ flightId: null });
+      const shipStore = createTestStorage({
+        id: ship.idShipStore,
+        addressableId: ship.id,
+        type: 'SHIP_STORE',
+        items: [createStoreItem({ quantity: createMaterialAmountValue({ material: createMaterial({ ticker: 'RAT' }), amount: 500 }) })],
+      });
+      useShipsStore.getState().setOne(ship);
+      useStorageStore.getState().setOne(shipStore);
+
+      const result = calculateSiteBurn(siteId);
+      const ratBurn = result.burns.find((b) => b.materialTicker === 'RAT');
+      expect(ratBurn?.inventoryAmount).toBe(20); // only base store
     });
   });
 

@@ -10,9 +10,11 @@ import { useSettingsStore, type BurnThresholds } from '../stores/settings';
 export type { BurnThresholds } from '../stores/settings';
 import { getProductionBySiteId } from '../stores/entities/production';
 import { getWorkforceBySiteId } from '../stores/entities/workforce';
-import { getStorageByAddressableId } from '../stores/entities/storage';
+import { getStorageByAddressableId, useStorageStore } from '../stores/entities/storage';
 import { useSitesStore } from '../stores/entities/sites';
-import { getEntityDisplayName } from '../lib/address';
+import { useShipsStore } from '../stores/entities/ships';
+import { getFlightByShipId } from '../stores/entities/flights';
+import { getEntityDisplayName, extractPlanetNaturalId } from '../lib/address';
 
 // ============================================================================
 // Types
@@ -206,6 +208,36 @@ export function getInventoryFromStores(
 }
 
 /**
+ * Returns the combined cargo contents of all ships currently en route to the
+ * given site's planet. Ships that are docked or flying to a different planet
+ * are excluded. Matched by planet naturalId so address entity IDs don't matter.
+ */
+export function getInTransitShipCargo(siteAddress: PrunApi.Address): Map<string, number> {
+  const cargo = new Map<string, number>();
+  const sitePlanetId = extractPlanetNaturalId(siteAddress);
+  if (!sitePlanetId) return cargo;
+
+  for (const ship of useShipsStore.getState().getAll()) {
+    if (!ship.flightId) continue;
+    const flight = getFlightByShipId(ship.id);
+    if (!flight) continue;
+    if (extractPlanetNaturalId(flight.destination) !== sitePlanetId) continue;
+
+    const shipStore = useStorageStore.getState().getById(ship.idShipStore);
+    if (!shipStore) continue;
+
+    for (const item of shipStore.items) {
+      if (item.quantity?.material?.ticker) {
+        const ticker = item.quantity.material.ticker;
+        cargo.set(ticker, (cargo.get(ticker) ?? 0) + item.quantity.amount);
+      }
+    }
+  }
+
+  return cargo;
+}
+
+/**
  * Classifies the burn type for a material based on its activity.
  * Priority: output > input > workforce
  */
@@ -309,6 +341,13 @@ export function calculateSiteBurn(siteId: string): SiteBurnSummary {
     workforceEntity?.workforces ?? []
   );
   const inventory = getInventoryFromStores(stores);
+
+  // Include cargo from ships currently en route to this planet
+  if (site) {
+    for (const [ticker, amount] of getInTransitShipCargo(site.address)) {
+      inventory.set(ticker, (inventory.get(ticker) ?? 0) + amount);
+    }
+  }
 
   // Collect all material tickers with any activity
   const allTickers = new Set<string>([
