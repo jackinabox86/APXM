@@ -1,11 +1,15 @@
 // Ported from refined-prun src/features/XIT/ACT/action-steps/OPEN_SFC.ts.
 //
-// Mobile adaptation: instead of opening a split desktop tile, this opens the
-// SFC buffer in the mobile background navigator, optionally pre-fills the
-// destination planet via the AddressSelector, then restores the container so
-// the buffer is visible in APEX. The user is prompted to switch to APEX (via
-// the Show APEX button in the act runner), take flight, return to APXM, and
-// tap ACT to confirm.
+// Mobile adaptation:
+// - Buffer is opened via requestTile (the same proven path used by MTRA_TRANSFER).
+//   The user taps ACT once to trigger the automated open; the runner then drives
+//   the SFC form itself without any further manual interaction.
+// - If a destination is provided, the AddressSelector input is filled and the
+//   first autosuggest entry is clicked automatically (buffer temporarily made
+//   visible to satisfy WebKit's event restrictions, per mobile-integration.md).
+// - showMobileBufferContents() leaves the SFC buffer visible in APEX so the
+//   user can see it and tap TAKE FLIGHT after switching views via Show APEX
+//   (already present in the APXM header).
 
 import { act } from '../act-registry';
 import { useShipsStore } from '../../../stores/entities/ships';
@@ -29,40 +33,65 @@ export const OPEN_SFC = act.addActionStep<Data>({
       : `Open SFC for ${shipLabel}`;
   },
   execute: async ctx => {
-    const { data, log, setStatus, openTileSilent, waitAct, complete } = ctx;
+    const { data, log, setStatus, requestTile, waitAct, complete } = ctx;
     const assert: AssertFn = ctx.assert;
 
     const ship = useShipsStore.getState().getById(data.shipId);
     assert(ship, 'Ship not found');
 
     const shipLabel = ship.name ?? ship.registration ?? data.shipId;
+    const destMsg = data.destination ? ` → ${data.destination}` : '';
 
-    // Open the SFC buffer automatically in the background.
-    setStatus(`Opening SFC for ${shipLabel}...`);
-    const tile = await openTileSilent(`SFC ${ship.registration}`);
+    // requestTile follows the proven APXM pattern: waitAct (user taps ACT) →
+    // openMobileBuffer (runner navigates and opens the buffer automatically).
+    const tile = await requestTile(`SFC ${ship.registration}`);
     if (!tile) return;
 
-    // Pre-fill the destination planet if one was specified.
+    // Auto-fill destination if one was specified.
     if (data.destination) {
       setStatus(`Setting destination to ${data.destination}...`);
       const bufContainer = tile.anchor as HTMLElement;
 
-      // WebKit requires visibility:visible for focus and input events.
+      // WebKit requires visibility:visible for focus and input events
+      // (see docs/mobile-integration.md §1).
       const prevVisibility = bufContainer.style.visibility;
       const prevLeft = bufContainer.style.left;
       bufContainer.style.visibility = 'visible';
       bufContainer.style.left = '0px';
 
-      // Find the destination AddressSelector input inside the SFC buffer.
-      const input = _$$<HTMLInputElement>(document.documentElement, C.AddressSelector.input)[0];
+      // The SFC destination field uses the AddressSelector component.
+      // C.AddressSelector.input is populated from APEX's injected CSS —
+      // the same class hash is present on both mobile and desktop builds.
+      const input = _$$<HTMLInputElement>(tile.anchor, C.AddressSelector.input)[0];
       if (input) {
         focusElement(input);
-        setInputValue(input, data.destination);
-        await sleep(300);
+        await sleep(100);
 
-        // Wait for the autosuggest portal to populate and click the first entry.
+        // Clear any existing value then type character-by-character.
+        // APEX's AddressSelector autocomplete listens for keydown/keyup events,
+        // matching the MaterialSelector pattern in cont-utils.ts.
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value',
+        )?.set;
+        if (nativeSetter) nativeSetter.call(input, '');
+        else input.value = '';
+        input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await sleep(50);
+
+        for (const char of data.destination) {
+          input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true, cancelable: true }));
+          input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true, cancelable: true }));
+          if (nativeSetter) nativeSetter.call(input, input.value + char);
+          else input.value += char;
+          input.dispatchEvent(new InputEvent('input', { data: char, inputType: 'insertText', bubbles: true }));
+          input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true, cancelable: true }));
+          await sleep(30);
+        }
+
+        // Wait for the autosuggest portal to populate.
         const portal =
-          document.getElementById('autosuggest-portal') ?? (document.body as HTMLElement);
+          (document.getElementById('autosuggest-portal') as HTMLElement | null) ?? document.body;
         const suggestion = (await $(
           portal,
           C.AddressSelector.suggestionContent,
@@ -79,19 +108,17 @@ export const OPEN_SFC = act.addActionStep<Data>({
         log.warning('SFC address input not found — set destination manually');
       }
 
-      // Restore off-screen position; showMobileBufferContents() will reveal
-      // the buffer at the right moment below.
+      // Restore hidden position before revealing via showMobileBufferContents.
       bufContainer.style.left = prevLeft;
       bufContainer.style.visibility = prevVisibility;
     }
 
-    // Make the SFC buffer visible in APEX (restore #container without closing
-    // the buffer or navigating away).
+    // Leave the SFC buffer visible in APEX so the user can see and interact
+    // with it after tapping Show APEX in the APXM header.
     showMobileBufferContents();
 
-    const destMsg = data.destination ? ` with destination ${data.destination}` : '';
     await waitAct(
-      `SFC for ${shipLabel}${destMsg} is ready — tap Show APEX, take flight, return to APXM, then tap ACT`,
+      `SFC for ${shipLabel}${destMsg} ready — tap Show APEX to view, take flight, return to APXM, then tap ACT`,
     );
     complete();
   },
