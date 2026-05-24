@@ -32,7 +32,7 @@ function RepairAgeBadge({ days }: { days: number | null }) {
 }
 
 export function BasesMiniList() {
-  const { setActiveTab } = useGameState();
+  const { setActiveTab, setFocusedSiteId } = useGameState();
   const siteBurns = useSiteBurns();
   const repairStatuses = useRepairStatus();
 
@@ -90,7 +90,12 @@ export function BasesMiniList() {
       <div className="space-y-0">
         {topBases.map((site) => (
           <div key={site.siteId} className="flex items-center py-1">
-            <span className="text-sm text-apxm-text truncate flex-1 mr-2">{site.siteName}</span>
+            <button
+              onClick={() => { setFocusedSiteId(site.siteId); setActiveTab('bases'); }}
+              className="text-sm text-apxm-text truncate flex-1 mr-2 text-left hover:text-prun-yellow"
+            >
+              {site.siteName}
+            </button>
             <div className="w-10 flex justify-center">
               {site.mostUrgent ? (
                 <TimeBadge
@@ -98,7 +103,7 @@ export function BasesMiniList() {
                   urgency={site.mostUrgent.urgency}
                 />
               ) : (
-                <span className="text-xs text-apxm-muted">OK</span>
+                <span className="text-xs text-apxm-muted">?</span>
               )}
             </div>
             <div className="w-10 flex justify-center ml-1">

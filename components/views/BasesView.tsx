@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FilterBar, type FilterOption, DataGate, type RequiredStore } from '../shared';
 import { SiteBurnCard } from '../burn/SiteBurnCard';
 import { useFilteredBurns, type BurnFilter } from './hooks';
@@ -21,8 +21,16 @@ const individualFilters: BurnFilter[] = ['critical', 'warning', 'ok'];
  * BURN tab content.
  */
 export function BasesView() {
-  const { setActiveTab, setActiveActPlanet } = useGameState();
+  const { setActiveTab, setActiveActPlanet, focusedSiteId, setFocusedSiteId } = useGameState();
   const [activeFilters, setActiveFilters] = useState<Set<BurnFilter>>(new Set(['all']));
+
+  // Capture the focused site on first render, then clear it from global state
+  // so navigating away and back doesn't re-expand the same card.
+  const initialFocusRef = useRef(focusedSiteId);
+  useEffect(() => {
+    if (focusedSiteId !== null) setFocusedSiteId(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { summaries, counts } = useFilteredBurns(activeFilters);
 
   const handleFilterToggle = useCallback((filter: BurnFilter) => {
@@ -97,7 +105,7 @@ export function BasesView() {
               <SiteBurnCard
                 key={summary.siteId}
                 summary={summary}
-                defaultExpanded={false}
+                defaultExpanded={summary.siteId === initialFocusRef.current}
               />
             ))}
           </div>
