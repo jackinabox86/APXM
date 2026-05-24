@@ -138,14 +138,14 @@ export function SiteBurnCard({ summary, defaultExpanded = false, repairAgeDays, 
               return (
                 <div className={`flex flex-col items-center px-2 py-1 ${burnColor}`}>
                   <span className="text-[10px] uppercase leading-none mb-0.5 font-semibold">burn</span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
                     <span className="text-xs font-medium">{burnDisplay}</span>
                     <span
                       role="button"
                       tabIndex={0}
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
-                      className="px-1 py-0.5 text-[10px] rounded border border-current opacity-75 hover:opacity-100 leading-none cursor-pointer"
+                      className="px-1 py-0.5 text-[10px] rounded border border-white/60 text-white/80 hover:border-white hover:text-white leading-none cursor-pointer"
                     >
                       RES
                     </span>
@@ -161,14 +161,14 @@ export function SiteBurnCard({ summary, defaultExpanded = false, repairAgeDays, 
               return (
                 <div className={`flex flex-col items-center px-2 py-1 ${repairColor}`}>
                   <span className="text-[10px] uppercase leading-none mb-0.5 font-semibold">repair</span>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
                     <span className="text-xs font-medium">{repairDisplay}</span>
                     <span
                       role="button"
                       tabIndex={0}
                       onClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
-                      className="px-1 py-0.5 text-[10px] rounded border border-current opacity-75 hover:opacity-100 leading-none cursor-pointer"
+                      className="px-1 py-0.5 text-[10px] rounded border border-white/60 text-white/80 hover:border-white hover:text-white leading-none cursor-pointer"
                     >
                       REP
                     </span>
