@@ -4,11 +4,46 @@ import { useRefreshState } from '../../stores/refreshState';
 import { executeBufferRefresh, buildBufferCommand } from '../../lib/buffer-refresh';
 import { useSiteStaleness } from '../../hooks/useSiteStaleness';
 import { BurnRow } from './BurnRow';
+import { TimeBadge } from '../shared/TimeBadge';
 
 interface SiteBurnCardProps {
   summary: SiteBurnSummary;
   /** Start expanded */
   defaultExpanded?: boolean;
+  /** Oldest building age in days for the repair info box */
+  repairAgeDays?: number | null;
+  /** Production status: true = all running, false = some idle, null = unknown */
+  prodStatus?: boolean | null;
+}
+
+const repairAgeBgColors = {
+  critical: 'bg-status-critical/20 text-status-critical',
+  warning: 'bg-status-warning/20 text-status-warning',
+  ok: 'bg-status-ok/20 text-status-ok',
+} as const;
+
+function repairUrgency(days: number): 'ok' | 'warning' | 'critical' {
+  if (days >= 60) return 'critical';
+  if (days >= 50) return 'warning';
+  return 'ok';
+}
+
+function RepairAgeBadge({ days }: { days: number | null }) {
+  if (days === null) return <span className="text-xs text-apxm-muted">—</span>;
+  const urgency = repairUrgency(days);
+  return (
+    <span className={`px-2 py-0.5 text-xs font-medium ${repairAgeBgColors[urgency]}`}>
+      {Math.ceil(days)}d
+    </span>
+  );
+}
+
+function ProdStatusBadge({ allRunning }: { allRunning: boolean }) {
+  return allRunning ? (
+    <span className="px-2 py-0.5 text-xs font-medium bg-status-ok/20 text-status-ok">✓</span>
+  ) : (
+    <span className="px-2 py-0.5 text-xs font-medium bg-status-critical/20 text-status-critical">∅</span>
+  );
 }
 
 /**
@@ -46,7 +81,7 @@ function sortBurns(burns: BurnRate[]): BurnRate[] {
  * Card showing burn summary for a single site.
  * Collapsible with header showing site name and most urgent item.
  */
-export function SiteBurnCard({ summary, defaultExpanded = false }: SiteBurnCardProps) {
+export function SiteBurnCard({ summary, defaultExpanded = false, repairAgeDays, prodStatus }: SiteBurnCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const { siteId, siteName, burns } = summary;
 
@@ -73,14 +108,14 @@ export function SiteBurnCard({ summary, defaultExpanded = false }: SiteBurnCardP
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 p-3 text-left hover:bg-apxm-accent/30 min-h-[44px]"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-1">
           {/* Expand/collapse indicator */}
-          <span className="text-apxm-text/50 text-xs w-4">
+          <span className="text-apxm-text/50 text-xs w-4 shrink-0">
             {expanded ? '▼' : '▶'}
           </span>
 
           {/* Site name + staleness (only when site has burn data) */}
-          <div>
+          <div className="flex-1 min-w-0">
             <span className="font-semibold text-apxm-text">{siteName}</span>
             {sortedBurns.length > 0 && (
               <div className={`text-[11px] mt-0.5 flex items-center gap-1 ${stalenessColor}`}>
@@ -107,6 +142,59 @@ export function SiteBurnCard({ summary, defaultExpanded = false }: SiteBurnCardP
                 {stalenessText}
               </div>
             )}
+          </div>
+
+          {/* Right-anchored info boxes */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Burn box */}
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-apxm-muted uppercase leading-none mb-0.5">burn</span>
+              <div className="flex items-center gap-1">
+                {summary.mostUrgent ? (
+                  <TimeBadge daysRemaining={summary.mostUrgent.daysRemaining} urgency={summary.mostUrgent.urgency} />
+                ) : (
+                  <span className="text-xs text-apxm-muted">?</span>
+                )}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
+                  className="px-1 py-0.5 text-[10px] rounded border border-apxm-accent text-apxm-muted hover:border-prun-yellow hover:text-prun-yellow leading-none cursor-pointer"
+                >
+                  RES
+                </span>
+              </div>
+            </div>
+
+            {/* Repair box */}
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-apxm-muted uppercase leading-none mb-0.5">repair</span>
+              <div className="flex items-center gap-1">
+                <RepairAgeBadge days={repairAgeDays ?? null} />
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
+                  className="px-1 py-0.5 text-[10px] rounded border border-apxm-accent text-apxm-muted hover:border-prun-yellow hover:text-prun-yellow leading-none cursor-pointer"
+                >
+                  REP
+                </span>
+              </div>
+            </div>
+
+            {/* Prod box */}
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-apxm-muted uppercase leading-none mb-0.5">prod</span>
+              <div className="flex items-center">
+                {prodStatus === null || prodStatus === undefined ? (
+                  <span className="text-xs text-apxm-muted">?</span>
+                ) : (
+                  <ProdStatusBadge allRunning={prodStatus} />
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
