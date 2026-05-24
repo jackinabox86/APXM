@@ -13,6 +13,8 @@ interface SiteBurnCardProps {
   repairAgeDays?: number | null;
   /** Production status: true = all running, false = some idle, null = unknown */
   prodStatus?: boolean | null;
+  onResClick?: (siteId: string) => void;
+  onRepClick?: (siteId: string) => void;
 }
 
 const statusColors = {
@@ -64,7 +66,7 @@ function sortBurns(burns: BurnRate[]): BurnRate[] {
  * Card showing burn summary for a single site.
  * Collapsible with header showing site name and most urgent item.
  */
-export function SiteBurnCard({ summary, defaultExpanded = false, repairAgeDays, prodStatus }: SiteBurnCardProps) {
+export function SiteBurnCard({ summary, defaultExpanded = false, repairAgeDays, prodStatus, onResClick, onRepClick }: SiteBurnCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const { siteId, siteName, burns } = summary;
 
@@ -143,8 +145,8 @@ export function SiteBurnCard({ summary, defaultExpanded = false, repairAgeDays, 
                     <span
                       role="button"
                       tabIndex={0}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
+                      onClick={(e) => { e.stopPropagation(); onResClick?.(siteId); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onResClick?.(siteId); } }}
                       className="px-1 py-0.5 text-[10px] rounded border border-white/60 text-white/80 hover:border-white hover:text-white leading-none cursor-pointer"
                     >
                       RES
@@ -166,8 +168,8 @@ export function SiteBurnCard({ summary, defaultExpanded = false, repairAgeDays, 
                     <span
                       role="button"
                       tabIndex={0}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
+                      onClick={(e) => { e.stopPropagation(); onRepClick?.(siteId); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onRepClick?.(siteId); } }}
                       className="px-1 py-0.5 text-[10px] rounded border border-white/60 text-white/80 hover:border-white hover:text-white leading-none cursor-pointer"
                     >
                       REP

@@ -84,6 +84,8 @@ export function BasesView() {
               defaultExpanded={summary.siteId === initialFocusRef.current}
               repairAgeDays={repairBySite.get(summary.siteId) ?? null}
               prodStatus={prodStatusBySite.get(summary.siteId) ?? null}
+              onResClick={(siteId) => { setActiveActPlanet(siteId); setActiveTab('burnact'); }}
+              onRepClick={(siteId) => { setActiveActPlanet(siteId); setActiveTab('repairact'); }}
             />
           ))}
         </div>

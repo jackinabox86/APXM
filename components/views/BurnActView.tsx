@@ -53,6 +53,9 @@ export function BurnActView() {
   const warehousesCount = useWarehouseStore((s) => s.warehouses.length);
   const exchangesCount = useExchangeStore((s) => s.exchanges.length);
 
+  // When launched from a card button, activeActPlanet is pre-set; hide the selector.
+  const preseeded = useRef(activeActPlanet !== null);
+
   // Form state
   const [planet, setPlanet] = useState(activeActPlanet ?? '');
   const [days, setDays] = useState('30');
@@ -252,24 +255,30 @@ export function BurnActView() {
         >
           ← BURN
         </button>
-        <h2 className="text-sm font-semibold text-prun-yellow uppercase tracking-wide">
-          BURNACT
+        <h2 className="text-sm font-semibold text-prun-yellow uppercase tracking-wide truncate min-w-0">
+          {preseeded.current
+            ? `BURNACT - ${siteOptions.find((o) => o.id === planet)?.label ?? planet}`
+            : 'BURNACT'}
         </h2>
       </div>
 
       {/* Form */}
       <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
-        <label className={LABEL_CLS}>Base</label>
-        <select
-          value={planet}
-          onChange={(e) => setPlanet(e.target.value)}
-          className={SELECT_CLS}
-        >
-          <option value="">— select base —</option>
-          {siteOptions.map((o) => (
-            <option key={o.id} value={o.id}>{o.label}</option>
-          ))}
-        </select>
+        {!preseeded.current && (
+          <>
+            <label className={LABEL_CLS}>Base</label>
+            <select
+              value={planet}
+              onChange={(e) => setPlanet(e.target.value)}
+              className={SELECT_CLS}
+            >
+              <option value="">— select base —</option>
+              {siteOptions.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
+          </>
+        )}
 
         <label className={LABEL_CLS}>Days</label>
         <input
