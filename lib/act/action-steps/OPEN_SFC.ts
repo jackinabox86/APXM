@@ -47,6 +47,12 @@ export const OPEN_SFC = act.addActionStep<Data>({
     const tile = await requestTile(`SFC ${ship.registration}`);
     if (!tile) return;
 
+    // Quick sanity check: log whether we're actually inside the SFC buffer form
+    // (AddressSelector present) vs. buffer list (false-positive FormComponent).
+    const sfcFormCheck = !!_$$(tile.anchor, C.AddressSelector.input).length;
+    console.log('[OPEN_SFC] at SFC buffer form level:', sfcFormCheck,
+      '| FormComponent active:', !!tile.anchor.querySelector('[class*="FormComponent__containerActive"]'));
+
     // Pre-type the destination so the suggestion dropdown is ready when the
     // user taps Show APEX. We do NOT click the suggestion programmatically —
     // doing so causes APEX to navigate away from the SFC buffer on mobile.
@@ -114,6 +120,8 @@ export const OPEN_SFC = act.addActionStep<Data>({
     // showMobileBufferContents() is a no-op now that the navigator never hides
     // #container, but kept here to make the intent explicit.
     showMobileBufferContents();
+    console.log('[OPEN_SFC] reached waitAct — SFC form still active:',
+      !!tile.anchor.querySelector('[class*="FormComponent__containerActive"]'));
 
     const tapMsg = data.destination
       ? `SFC for ${shipLabel}${destMsg} ready — tap Show APEX, select "${data.destination}" in the dropdown, take flight, return to APXM, then tap ACT`

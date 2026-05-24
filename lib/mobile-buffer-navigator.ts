@@ -38,17 +38,18 @@ const STEP_TIMEOUT_MS = 2000;
 const FORM_TIMEOUT_MS = 10000;
 
 /**
- * The buffer form sentinel. APEX renders a FormComponent container element
- * inside an open buffer; its CSS-module class (FormComponent__containerActive
- * / Passive / Command and the Mobile variants) is identical on mobile and
- * desktop. Matching the class prefix avoids depending on a build-time hash map.
+ * The buffer form sentinel. Match only the ACTIVE variant of FormComponent so
+ * buffer-list cards (which render as Passive) don't produce a false positive
+ * and cause openMobileBuffer to return before the real buffer form is ready.
+ * The CSS-module class is FormComponent__containerActive / containerMobileActive;
+ * matching the shared "containerActive" substring covers both variants.
  */
 function findBufferForm(): HTMLElement | null {
   const container = getContainer();
   if (!container) {
     return null;
   }
-  return container.querySelector<HTMLElement>('[class*="FormComponent__container"]');
+  return container.querySelector<HTMLElement>('[class*="FormComponent__containerActive"]');
 }
 
 /**
