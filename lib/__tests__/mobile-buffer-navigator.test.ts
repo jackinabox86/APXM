@@ -73,35 +73,33 @@ function installFakeApex(): HTMLElement {
 
 describe('mobile-buffer-navigator', () => {
   afterEach(async () => {
-    // Reset module state (savedStyles) and the DOM between tests.
+    // Reset APEX DOM state between tests.
     await closeMobileBuffer();
     document.body.innerHTML = '';
   });
 
-  it('opens a buffer, hides #container, and renders the form sentinel', async () => {
+  it('opens a buffer without hiding #container and renders the form sentinel', async () => {
     const container = installFakeApex();
 
     const opened = await openMobileBuffer('BS XY-123A');
 
     expect(opened).toBe(true);
-    // #container stays hidden off-screen while the buffer is open.
-    expect(container.style.visibility).toBe('hidden');
-    expect(container.style.left).toBe('-9999px');
+    // #container is NOT hidden — APXM overlay already covers APEX.
+    expect(container.style.visibility).not.toBe('hidden');
     // The buffer form has rendered.
     expect(container.querySelector('[class*="FormComponent__container"]')).not.toBeNull();
   });
 
-  it('restores #container styles on closeMobileBuffer', async () => {
+  it('closeMobileBuffer navigates back to stacks top level without altering styles', async () => {
     const container = installFakeApex();
 
     await openMobileBuffer('BS XY-123A');
-    expect(container.style.visibility).toBe('hidden');
+    const visibilityBefore = container.style.visibility;
 
     await closeMobileBuffer();
 
-    expect(container.style.visibility).toBe('');
-    expect(container.style.position).toBe('');
-    expect(container.style.left).toBe('');
+    // Styles are unchanged — the navigator never modifies them.
+    expect(container.style.visibility).toBe(visibilityBefore);
   });
 
   it('returns false when #container is missing', async () => {
