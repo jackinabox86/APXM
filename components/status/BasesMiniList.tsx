@@ -5,7 +5,7 @@ import { useGameState } from '../../stores/gameState';
 import { useConnectionStore } from '../../stores/connection';
 import { useSitesStore } from '../../stores/entities/sites';
 import { useWorkforceStore } from '../../stores/entities/workforce';
-import { useProductionStore, getProductionBySiteId } from '../../stores/entities/production';
+import { useProductionStore, useProductionLoadedStore, getProductionBySiteId } from '../../stores/entities/production';
 import { useStorageStore } from '../../stores/entities/storage';
 import { useRepairStatus } from '../repair/useRepairStatus';
 
@@ -49,19 +49,20 @@ export function BasesMiniList() {
   const workforceFetched = useWorkforceStore((s) => s.fetched);
   const productionFetched = useProductionStore((s) => s.fetched);
   const productionLastUpdated = useProductionStore((s) => s.lastUpdated);
+  const loadedSiteIds = useProductionLoadedStore((s) => s.loadedSiteIds);
   const storageFetched = useStorageStore((s) => s.fetched);
 
   // All sites sorted by burn urgency — base order before prod override
   const burnSorted = useMemo(() => sortByUrgency(siteBurns), [siteBurns]);
 
-  // Production status for every site.
-  // null  = no data yet (store not fetched, or site has no lines loaded) → show ?
-  // true  = all lines have an active order → show ✓
-  // false = at least one line is idle     → show ∅
+  // Production status per site.
+  // null  = data not yet loaded for this site → show ?
+  // true  = all lines active                  → show ✓
+  // false = any line idle, or no lines at all → show ∅
   const prodStatusBySite = useMemo(() => {
     const map = new Map<string, boolean | null>();
     for (const site of burnSorted) {
-      if (!productionFetched) {
+      if (!loadedSiteIds.has(site.siteId)) {
         map.set(site.siteId, null);
       } else {
         const lines = getProductionBySiteId(site.siteId);
@@ -71,9 +72,9 @@ export function BasesMiniList() {
       }
     }
     return map;
-  // productionLastUpdated triggers recompute when production store changes
+  // loadedSiteIds (new Set ref) and productionLastUpdated both trigger recompute
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [burnSorted, productionFetched, productionLastUpdated]);
+  }, [burnSorted, loadedSiteIds, productionLastUpdated]);
 
   // Final sort: stopped production bubbles above burn urgency, then slice to 5
   const topBases = useMemo(() => {
