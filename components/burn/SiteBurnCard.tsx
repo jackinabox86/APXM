@@ -9,6 +9,24 @@ interface SiteBurnCardProps {
   summary: SiteBurnSummary;
   /** Start expanded */
   defaultExpanded?: boolean;
+  /** Oldest building age in days for the repair info box */
+  repairAgeDays?: number | null;
+  /** Production status: true = all running, false = some idle, null = unknown */
+  prodStatus?: boolean | null;
+}
+
+const statusColors = {
+  critical: 'bg-status-critical/20 text-status-critical',
+  warning:  'bg-status-warning/20 text-status-warning',
+  ok:       'bg-status-ok/20 text-status-ok',
+  surplus:  'bg-apxm-surface text-apxm-muted',
+  unknown:  'bg-apxm-surface text-apxm-muted',
+} as const;
+
+function repairUrgency(days: number): 'ok' | 'warning' | 'critical' {
+  if (days >= 60) return 'critical';
+  if (days >= 50) return 'warning';
+  return 'ok';
 }
 
 /**
@@ -46,7 +64,7 @@ function sortBurns(burns: BurnRate[]): BurnRate[] {
  * Card showing burn summary for a single site.
  * Collapsible with header showing site name and most urgent item.
  */
-export function SiteBurnCard({ summary, defaultExpanded = false }: SiteBurnCardProps) {
+export function SiteBurnCard({ summary, defaultExpanded = false, repairAgeDays, prodStatus }: SiteBurnCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const { siteId, siteName, burns } = summary;
 
@@ -73,14 +91,14 @@ export function SiteBurnCard({ summary, defaultExpanded = false }: SiteBurnCardP
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 p-3 text-left hover:bg-apxm-accent/30 min-h-[44px]"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-1">
           {/* Expand/collapse indicator */}
-          <span className="text-apxm-text/50 text-xs w-4">
+          <span className="text-apxm-text/50 text-xs w-4 shrink-0">
             {expanded ? '▼' : '▶'}
           </span>
 
           {/* Site name + staleness (only when site has burn data) */}
-          <div>
+          <div className="flex-1 min-w-0">
             <span className="font-semibold text-apxm-text">{siteName}</span>
             {sortedBurns.length > 0 && (
               <div className={`text-[11px] mt-0.5 flex items-center gap-1 ${stalenessColor}`}>
@@ -107,6 +125,69 @@ export function SiteBurnCard({ summary, defaultExpanded = false }: SiteBurnCardP
                 {stalenessText}
               </div>
             )}
+          </div>
+
+          {/* Right-anchored info boxes */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Burn box */}
+            {(() => {
+              const burnColor = statusColors[summary.mostUrgent?.urgency ?? 'unknown'];
+              const burnDisplay = summary.mostUrgent
+                ? (summary.mostUrgent.daysRemaining === Infinity ? 'OK' : summary.mostUrgent.daysRemaining < 1 ? '<1d' : `${Math.floor(summary.mostUrgent.daysRemaining)}d`)
+                : '?';
+              return (
+                <div className={`flex flex-col items-center px-2 py-1 ${burnColor}`}>
+                  <span className="text-[10px] uppercase leading-none mb-0.5 font-semibold">burn</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium">{burnDisplay}</span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
+                      className="px-1 py-0.5 text-[10px] rounded border border-white/60 text-white/80 hover:border-white hover:text-white leading-none cursor-pointer"
+                    >
+                      RES
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Repair box */}
+            {(() => {
+              const repairColor = repairAgeDays != null ? statusColors[repairUrgency(repairAgeDays)] : statusColors.unknown;
+              const repairDisplay = repairAgeDays != null ? `${Math.ceil(repairAgeDays)}d` : '—';
+              return (
+                <div className={`flex flex-col items-center px-2 py-1 ${repairColor}`}>
+                  <span className="text-[10px] uppercase leading-none mb-0.5 font-semibold">repair</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium">{repairDisplay}</span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
+                      className="px-1 py-0.5 text-[10px] rounded border border-white/60 text-white/80 hover:border-white hover:text-white leading-none cursor-pointer"
+                    >
+                      REP
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Prod box */}
+            {(() => {
+              const prodColor = prodStatus == null ? statusColors.unknown : prodStatus ? statusColors.ok : statusColors.critical;
+              const prodDisplay = prodStatus == null ? '?' : prodStatus ? '✓' : '∅';
+              return (
+                <div className={`flex flex-col items-center px-2 py-1 ${prodColor}`}>
+                  <span className="text-[10px] uppercase leading-none mb-0.5 font-semibold">prod</span>
+                  <span className="text-xs font-medium">{prodDisplay}</span>
+                </div>
+              );
+            })()}
           </div>
         </div>
 

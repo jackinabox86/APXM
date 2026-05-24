@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { DataGate, type RequiredStore } from '../shared';
 import { SiteBurnCard } from '../burn/SiteBurnCard';
 import { useSiteBurns, sortByUrgency } from '../burn/useSiteBurns';
 import { useSitesStore } from '../../stores/entities/sites';
 import { useGameState } from '../../stores/gameState';
+import { useRepairStatus } from '../repair/useRepairStatus';
+import { useProductionStore, getProductionBySiteId } from '../../stores/entities/production';
 
 /**
  * Full burn view showing all sites sorted by urgency.
@@ -23,6 +25,30 @@ export function BasesView() {
   }, []);
 
   const sitesFetched = useSitesStore((s) => s.fetched);
+
+  const repairStatuses = useRepairStatus();
+  const repairBySite = useMemo(
+    () => new Map(repairStatuses.map((r) => [r.siteId, r.oldestBuildingAgeDays])),
+    [repairStatuses]
+  );
+
+  const productionFetched = useProductionStore((s) => s.fetched);
+  const productionLastUpdated = useProductionStore((s) => s.lastUpdated);
+  const prodStatusBySite = useMemo(() => {
+    const map = new Map<string, boolean | null>();
+    for (const site of summaries) {
+      if (!productionFetched) {
+        map.set(site.siteId, null);
+      } else {
+        const lines = getProductionBySiteId(site.siteId);
+        map.set(site.siteId, lines.length > 0 && lines.every(
+          (line) => line.orders.some((o) => o.started !== null && !o.halted)
+        ));
+      }
+    }
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaries, productionFetched, productionLastUpdated]);
 
   // Only gate on sites — workforce, production, and storage populate
   // incrementally via buffer refresh or APEX navigation. The burn cards
@@ -56,6 +82,8 @@ export function BasesView() {
               key={summary.siteId}
               summary={summary}
               defaultExpanded={summary.siteId === initialFocusRef.current}
+              repairAgeDays={repairBySite.get(summary.siteId) ?? null}
+              prodStatus={prodStatusBySite.get(summary.siteId) ?? null}
             />
           ))}
         </div>
