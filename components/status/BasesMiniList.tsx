@@ -54,19 +54,24 @@ export function BasesMiniList() {
   // All sites sorted by burn urgency — base order before prod override
   const burnSorted = useMemo(() => sortByUrgency(siteBurns), [siteBurns]);
 
-  // Production status for every site. Treat unknown (not yet fetched) as running
-  // so sites don't float to the top based on missing data.
+  // Production status for every site.
+  // null  = no data yet (store not fetched, or site has no lines loaded) → show ?
+  // true  = all lines have an active order → show ✓
+  // false = at least one line is idle     → show ∅
   const prodStatusBySite = useMemo(() => {
-    const map = new Map<string, boolean>();
+    const map = new Map<string, boolean | null>();
     for (const site of burnSorted) {
       if (!productionFetched) {
-        map.set(site.siteId, true);
+        map.set(site.siteId, null);
       } else {
         const lines = getProductionBySiteId(site.siteId);
-        const allRunning = lines.length > 0 && lines.every(
-          (line) => line.orders.some((o) => o.started !== null && !o.halted)
-        );
-        map.set(site.siteId, allRunning);
+        if (lines.length === 0) {
+          map.set(site.siteId, null);
+        } else {
+          map.set(site.siteId, lines.every(
+            (line) => line.orders.some((o) => o.started !== null && !o.halted)
+          ));
+        }
       }
     }
     return map;
@@ -150,10 +155,10 @@ export function BasesMiniList() {
               <RepairAgeBadge days={repairBySite.get(site.siteId) ?? null} />
             </div>
             <div className="w-10 flex justify-center ml-1">
-              {productionFetched ? (
-                <ProdStatusBadge allRunning={prodStatusBySite.get(site.siteId) ?? false} />
-              ) : (
+              {(prodStatusBySite.get(site.siteId) ?? null) === null ? (
                 <span className="text-xs text-apxm-muted">?</span>
+              ) : (
+                <ProdStatusBadge allRunning={prodStatusBySite.get(site.siteId) as boolean} />
               )}
             </div>
           </div>
