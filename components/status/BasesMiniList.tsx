@@ -5,7 +5,7 @@ import { useGameState } from '../../stores/gameState';
 import { useConnectionStore } from '../../stores/connection';
 import { useSitesStore } from '../../stores/entities/sites';
 import { useWorkforceStore } from '../../stores/entities/workforce';
-import { useProductionStore } from '../../stores/entities/production';
+import { useProductionStore, getProductionBySiteId } from '../../stores/entities/production';
 import { useStorageStore } from '../../stores/entities/storage';
 import { useRepairStatus } from '../repair/useRepairStatus';
 
@@ -31,6 +31,14 @@ function RepairAgeBadge({ days }: { days: number | null }) {
   );
 }
 
+function ProdStatusBadge({ allRunning }: { allRunning: boolean }) {
+  return allRunning ? (
+    <span className="px-2 py-0.5 text-xs font-medium bg-status-ok/20 text-status-ok">✓</span>
+  ) : (
+    <span className="px-2 py-0.5 text-xs font-medium bg-status-critical/20 text-status-critical">∅</span>
+  );
+}
+
 export function BasesMiniList() {
   const { setActiveTab, setFocusedSiteId } = useGameState();
   const siteBurns = useSiteBurns();
@@ -40,6 +48,7 @@ export function BasesMiniList() {
   const sitesFetched = useSitesStore((s) => s.fetched);
   const workforceFetched = useWorkforceStore((s) => s.fetched);
   const productionFetched = useProductionStore((s) => s.fetched);
+  const productionLastUpdated = useProductionStore((s) => s.lastUpdated);
   const storageFetched = useStorageStore((s) => s.fetched);
 
   const topBases = useMemo(() => {
@@ -51,6 +60,21 @@ export function BasesMiniList() {
     () => new Map(repairStatuses.map((r) => [r.siteId, r.oldestBuildingAgeDays])),
     [repairStatuses]
   );
+
+  // Map siteId → all production lines running (true = all active, false = any idle)
+  const prodStatusBySite = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const site of topBases) {
+      const lines = getProductionBySiteId(site.siteId);
+      const allRunning = lines.length > 0 && lines.every(
+        (line) => line.orders.some((o) => o.started !== null && !o.halted)
+      );
+      map.set(site.siteId, allRunning);
+    }
+    return map;
+  // productionLastUpdated ensures this recomputes when production data changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topBases, productionLastUpdated]);
 
   const emptyMessage = apexUnresponsive && !sitesFetched
     ? { text: 'APEX not responding', pulse: false }
@@ -70,6 +94,7 @@ export function BasesMiniList() {
       </button>
       <span className="text-xs font-semibold text-apxm-muted uppercase w-10 text-center">Burn</span>
       <span className="text-xs font-semibold text-apxm-muted uppercase w-10 text-center ml-1">Repair</span>
+      <span className="text-xs font-semibold text-apxm-muted uppercase w-10 text-center ml-1">Prod</span>
     </div>
   );
 
@@ -108,6 +133,13 @@ export function BasesMiniList() {
             </div>
             <div className="w-10 flex justify-center ml-1">
               <RepairAgeBadge days={repairBySite.get(site.siteId) ?? null} />
+            </div>
+            <div className="w-10 flex justify-center ml-1">
+              {productionFetched ? (
+                <ProdStatusBadge allRunning={prodStatusBySite.get(site.siteId) ?? false} />
+              ) : (
+                <span className="text-xs text-apxm-muted">?</span>
+              )}
             </div>
           </div>
         ))}
