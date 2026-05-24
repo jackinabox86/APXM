@@ -65,13 +65,9 @@ export function BasesMiniList() {
         map.set(site.siteId, null);
       } else {
         const lines = getProductionBySiteId(site.siteId);
-        if (lines.length === 0) {
-          map.set(site.siteId, null);
-        } else {
-          map.set(site.siteId, lines.every(
-            (line) => line.orders.some((o) => o.started !== null && !o.halted)
-          ));
-        }
+        map.set(site.siteId, lines.length > 0 && lines.every(
+          (line) => line.orders.some((o) => o.started !== null && !o.halted)
+        ));
       }
     }
     return map;
