@@ -60,22 +60,6 @@ export function BasesView() {
   return (
     <DataGate requiredStores={requiredStores}>
       <div className="space-y-3">
-        {/* ACT navigation buttons */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => { setActiveActPlanet(null); setActiveTab('burnact'); }}
-            className="flex-1 min-h-touch px-3 py-2 text-xs rounded border border-apxm-accent text-apxm-muted font-semibold hover:border-prun-yellow hover:text-prun-yellow"
-          >
-            BURNACT
-          </button>
-          <button
-            onClick={() => { setActiveActPlanet(null); setActiveTab('repairact'); }}
-            className="flex-1 min-h-touch px-3 py-2 text-xs rounded border border-apxm-accent text-apxm-muted font-semibold hover:border-prun-yellow hover:text-prun-yellow"
-          >
-            REPAIRACT
-          </button>
-        </div>
-
         <div className="space-y-2">
           {summaries.map((summary) => (
             <SiteBurnCard
@@ -84,6 +68,8 @@ export function BasesView() {
               defaultExpanded={summary.siteId === initialFocusRef.current}
               repairAgeDays={repairBySite.get(summary.siteId) ?? null}
               prodStatus={prodStatusBySite.get(summary.siteId) ?? null}
+              onResClick={(siteId) => { setActiveActPlanet(siteId); setActiveTab('burnact'); }}
+              onRepClick={(siteId) => { setActiveActPlanet(siteId); setActiveTab('repairact'); }}
             />
           ))}
         </div>
