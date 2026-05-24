@@ -57,8 +57,6 @@ export function SiteBurnCard({ summary, defaultExpanded = false }: SiteBurnCardP
   const siteStatus = useRefreshState((s) => s.siteStatus.get(siteId));
 
   const sortedBurns = sortBurns(burns);
-  const criticalCount = burns.filter((b) => b.urgency === 'critical').length;
-  const warningCount = burns.filter((b) => b.urgency === 'warning').length;
 
   const showRefreshButton = mode === 'manual' || mode === 'batch';
   const isLoading = siteStatus === 'loading';
@@ -86,62 +84,37 @@ export function SiteBurnCard({ summary, defaultExpanded = false }: SiteBurnCardP
           <div>
             <span className="font-semibold text-apxm-text">{siteName}</span>
             {sortedBurns.length > 0 && (
-              <p className={`text-[11px] mt-0.5 ${stalenessColor}`}>
+              <div className={`text-[11px] mt-0.5 flex items-center gap-1 ${stalenessColor}`}>
+                {showRefreshButton && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={handleRefresh}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleRefresh(e as unknown as React.MouseEvent); }}
+                    className={`flex items-center ${
+                      isLoading
+                        ? 'text-apxm-muted cursor-wait'
+                        : siteStatus === 'success'
+                          ? 'text-green-400'
+                          : siteStatus === 'error'
+                            ? 'text-red-400'
+                            : 'text-apxm-text/50 hover:text-prun-yellow'
+                    }`}
+                    aria-label={`Refresh ${siteName}`}
+                  >
+                    {isLoading ? <span className="animate-spin">↻</span> : siteStatus === 'success' ? '✓' : siteStatus === 'error' ? '✗' : '↻'}
+                  </span>
+                )}
                 {stalenessText}
-              </p>
+              </div>
             )}
           </div>
-
-          {/* Quick counts */}
-          {criticalCount > 0 && (
-            <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-400">
-              {criticalCount}
-            </span>
-          )}
-          {warningCount > 0 && (
-            <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-400">
-              {warningCount}
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Refresh button */}
-          {showRefreshButton && (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={handleRefresh}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleRefresh(e as unknown as React.MouseEvent); }}
-              className={`min-h-touch w-8 flex items-center justify-center text-sm ${
-                isLoading
-                  ? 'text-apxm-muted cursor-wait'
-                  : siteStatus === 'success'
-                    ? 'text-green-400'
-                    : siteStatus === 'error'
-                      ? 'text-red-400'
-                      : 'text-apxm-text/50 hover:text-prun-yellow'
-              }`}
-              aria-label={`Refresh ${siteName}`}
-            >
-              {isLoading ? (
-                <span className="animate-spin">↻</span>
-              ) : siteStatus === 'success' ? (
-                '✓'
-              ) : siteStatus === 'error' ? (
-                '✗'
-              ) : (
-                '↻'
-              )}
-            </span>
-          )}
-
           {/* Most urgent item preview */}
           {mostUrgent && (
-            <>
-              <span className="text-xs text-apxm-text/70">{mostUrgent.materialTicker}</span>
-              <BurnBadge urgency={mostUrgent.urgency} daysRemaining={mostUrgent.daysRemaining} />
-            </>
+            <BurnBadge urgency={mostUrgent.urgency} daysRemaining={mostUrgent.daysRemaining} />
           )}
         </div>
       </button>
