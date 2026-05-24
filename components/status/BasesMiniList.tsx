@@ -51,30 +51,45 @@ export function BasesMiniList() {
   const productionLastUpdated = useProductionStore((s) => s.lastUpdated);
   const storageFetched = useStorageStore((s) => s.fetched);
 
+  // All sites sorted by burn urgency — base order before prod override
+  const burnSorted = useMemo(() => sortByUrgency(siteBurns), [siteBurns]);
+
+  // Production status for every site. Treat unknown (not yet fetched) as running
+  // so sites don't float to the top based on missing data.
+  const prodStatusBySite = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const site of burnSorted) {
+      if (!productionFetched) {
+        map.set(site.siteId, true);
+      } else {
+        const lines = getProductionBySiteId(site.siteId);
+        const allRunning = lines.length > 0 && lines.every(
+          (line) => line.orders.some((o) => o.started !== null && !o.halted)
+        );
+        map.set(site.siteId, allRunning);
+      }
+    }
+    return map;
+  // productionLastUpdated triggers recompute when production store changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [burnSorted, productionFetched, productionLastUpdated]);
+
+  // Final sort: stopped production bubbles above burn urgency, then slice to 5
   const topBases = useMemo(() => {
-    const sorted = sortByUrgency(siteBurns);
+    const sorted = [...burnSorted].sort((a, b) => {
+      const aProd = prodStatusBySite.get(a.siteId) ?? true;
+      const bProd = prodStatusBySite.get(b.siteId) ?? true;
+      if (!aProd && bProd) return -1;
+      if (aProd && !bProd) return 1;
+      return 0; // preserve burn urgency order within each group
+    });
     return sorted.slice(0, 5);
-  }, [siteBurns]);
+  }, [burnSorted, prodStatusBySite]);
 
   const repairBySite = useMemo(
     () => new Map(repairStatuses.map((r) => [r.siteId, r.oldestBuildingAgeDays])),
     [repairStatuses]
   );
-
-  // Map siteId → all production lines running (true = all active, false = any idle)
-  const prodStatusBySite = useMemo(() => {
-    const map = new Map<string, boolean>();
-    for (const site of topBases) {
-      const lines = getProductionBySiteId(site.siteId);
-      const allRunning = lines.length > 0 && lines.every(
-        (line) => line.orders.some((o) => o.started !== null && !o.halted)
-      );
-      map.set(site.siteId, allRunning);
-    }
-    return map;
-  // productionLastUpdated ensures this recomputes when production data changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topBases, productionLastUpdated]);
 
   const emptyMessage = apexUnresponsive && !sitesFetched
     ? { text: 'APEX not responding', pulse: false }
