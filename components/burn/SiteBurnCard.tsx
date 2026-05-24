@@ -4,7 +4,6 @@ import { useRefreshState } from '../../stores/refreshState';
 import { executeBufferRefresh, buildBufferCommand } from '../../lib/buffer-refresh';
 import { useSiteStaleness } from '../../hooks/useSiteStaleness';
 import { BurnRow } from './BurnRow';
-import { TimeBadge } from '../shared/TimeBadge';
 
 interface SiteBurnCardProps {
   summary: SiteBurnSummary;
@@ -16,34 +15,18 @@ interface SiteBurnCardProps {
   prodStatus?: boolean | null;
 }
 
-const repairAgeBgColors = {
+const statusColors = {
   critical: 'bg-status-critical/20 text-status-critical',
-  warning: 'bg-status-warning/20 text-status-warning',
-  ok: 'bg-status-ok/20 text-status-ok',
+  warning:  'bg-status-warning/20 text-status-warning',
+  ok:       'bg-status-ok/20 text-status-ok',
+  surplus:  'bg-apxm-surface text-apxm-muted',
+  unknown:  'bg-apxm-surface text-apxm-muted',
 } as const;
 
 function repairUrgency(days: number): 'ok' | 'warning' | 'critical' {
   if (days >= 60) return 'critical';
   if (days >= 50) return 'warning';
   return 'ok';
-}
-
-function RepairAgeBadge({ days }: { days: number | null }) {
-  if (days === null) return <span className="text-xs text-apxm-muted">—</span>;
-  const urgency = repairUrgency(days);
-  return (
-    <span className={`px-2 py-0.5 text-xs font-medium ${repairAgeBgColors[urgency]}`}>
-      {Math.ceil(days)}d
-    </span>
-  );
-}
-
-function ProdStatusBadge({ allRunning }: { allRunning: boolean }) {
-  return allRunning ? (
-    <span className="px-2 py-0.5 text-xs font-medium bg-status-ok/20 text-status-ok">✓</span>
-  ) : (
-    <span className="px-2 py-0.5 text-xs font-medium bg-status-critical/20 text-status-critical">∅</span>
-  );
 }
 
 /**
@@ -147,54 +130,64 @@ export function SiteBurnCard({ summary, defaultExpanded = false, repairAgeDays, 
           {/* Right-anchored info boxes */}
           <div className="flex items-center gap-1 shrink-0">
             {/* Burn box */}
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-apxm-muted uppercase leading-none mb-0.5">burn</span>
-              <div className="flex items-center gap-1">
-                {summary.mostUrgent ? (
-                  <TimeBadge daysRemaining={summary.mostUrgent.daysRemaining} urgency={summary.mostUrgent.urgency} />
-                ) : (
-                  <span className="text-xs text-apxm-muted">?</span>
-                )}
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
-                  className="px-1 py-0.5 text-[10px] rounded border border-apxm-accent text-apxm-muted hover:border-prun-yellow hover:text-prun-yellow leading-none cursor-pointer"
-                >
-                  RES
-                </span>
-              </div>
-            </div>
+            {(() => {
+              const burnColor = statusColors[summary.mostUrgent?.urgency ?? 'unknown'];
+              const burnDisplay = summary.mostUrgent
+                ? (summary.mostUrgent.daysRemaining === Infinity ? 'OK' : summary.mostUrgent.daysRemaining < 1 ? '<1d' : `${Math.floor(summary.mostUrgent.daysRemaining)}d`)
+                : '?';
+              return (
+                <div className={`flex flex-col items-center px-2 py-1 ${burnColor}`}>
+                  <span className="text-[10px] uppercase leading-none mb-0.5 font-semibold">burn</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-medium">{burnDisplay}</span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
+                      className="px-1 py-0.5 text-[10px] rounded border border-current opacity-75 hover:opacity-100 leading-none cursor-pointer"
+                    >
+                      RES
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Repair box */}
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-apxm-muted uppercase leading-none mb-0.5">repair</span>
-              <div className="flex items-center gap-1">
-                <RepairAgeBadge days={repairAgeDays ?? null} />
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
-                  className="px-1 py-0.5 text-[10px] rounded border border-apxm-accent text-apxm-muted hover:border-prun-yellow hover:text-prun-yellow leading-none cursor-pointer"
-                >
-                  REP
-                </span>
-              </div>
-            </div>
+            {(() => {
+              const repairColor = repairAgeDays != null ? statusColors[repairUrgency(repairAgeDays)] : statusColors.unknown;
+              const repairDisplay = repairAgeDays != null ? `${Math.ceil(repairAgeDays)}d` : '—';
+              return (
+                <div className={`flex flex-col items-center px-2 py-1 ${repairColor}`}>
+                  <span className="text-[10px] uppercase leading-none mb-0.5 font-semibold">repair</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-medium">{repairDisplay}</span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }}
+                      className="px-1 py-0.5 text-[10px] rounded border border-current opacity-75 hover:opacity-100 leading-none cursor-pointer"
+                    >
+                      REP
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Prod box */}
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-apxm-muted uppercase leading-none mb-0.5">prod</span>
-              <div className="flex items-center">
-                {prodStatus === null || prodStatus === undefined ? (
-                  <span className="text-xs text-apxm-muted">?</span>
-                ) : (
-                  <ProdStatusBadge allRunning={prodStatus} />
-                )}
-              </div>
-            </div>
+            {(() => {
+              const prodColor = prodStatus == null ? statusColors.unknown : prodStatus ? statusColors.ok : statusColors.critical;
+              const prodDisplay = prodStatus == null ? '?' : prodStatus ? '✓' : '∅';
+              return (
+                <div className={`flex flex-col items-center px-2 py-1 ${prodColor}`}>
+                  <span className="text-[10px] uppercase leading-none mb-0.5 font-semibold">prod</span>
+                  <span className="text-xs font-medium">{prodDisplay}</span>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
