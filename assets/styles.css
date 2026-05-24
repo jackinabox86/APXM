@@ -24,10 +24,12 @@ input[type='number'] {
   background-color: #0a0a1a !important; /* opaque dark bg - prevents APEX bleed-through */
 }
 
-/* Collapse the host when showing APEX — FloatingReturn escapes via fixed positioning */
+/* When showing APEX: transparent + no pointer events (set via App.tsx inline styles).
+ * overflow:visible keeps FloatingReturn visible on WebKit even though the host
+ * has overflow:hidden by default. height is NOT collapsed — changing the fixed
+ * host's height fires a resize event that APEX uses to navigate to the buffer list. */
 :host(.apex-visible) {
   background-color: transparent !important;
-  height: 0 !important;
   overflow: visible !important;
 }
 
