@@ -6,8 +6,8 @@
 // destination — both require desktop-only Window.window / tile.frame APIs
 // that do not exist on mobile.
 //
-// Stub: pause for manual user action and then complete so that the rest of
-// the action package can continue.
+// Mobile: log an informational message and complete automatically so the user
+// knows to send the ship manually via APEX.
 
 import { act } from '../act-registry';
 import { useShipsStore } from '../../../stores/entities/ships';
@@ -15,25 +15,22 @@ import { useShipsStore } from '../../../stores/entities/ships';
 interface Data {
   shipId: string;
   destination?: string;
+  label?: string;
+}
+
+function buildMessage(data: Data): string {
+  const ship = useShipsStore.getState().getById(data.shipId);
+  const shipLabel = ship?.name ?? ship?.registration ?? data.shipId;
+  const label = data.label ?? 'Resupply';
+  return data.destination
+    ? `${label} loaded onto ${shipLabel}. Manually send to ${data.destination} in APEX.`
+    : `${label} loaded onto ${shipLabel}. Manually send ship in APEX.`;
 }
 
 export const OPEN_SFC = act.addActionStep<Data>({
   type: 'OPEN_SFC',
-  description: data => {
-    const ship = useShipsStore.getState().getById(data.shipId);
-    const shipLabel = ship?.name ?? ship?.registration ?? data.shipId;
-    return data.destination
-      ? `Open SFC for ${shipLabel}, set destination to ${data.destination}`
-      : `Open SFC for ${shipLabel}`;
-  },
+  description: data => buildMessage(data),
   execute: async ctx => {
-    const { data, waitAct, complete } = ctx;
-    const ship = useShipsStore.getState().getById(data.shipId);
-    const shipLabel = ship?.name ?? ship?.registration ?? data.shipId;
-    const prompt = data.destination
-      ? `Open SFC for ${shipLabel} and set destination to ${data.destination} manually`
-      : `Open SFC for ${shipLabel} manually`;
-    await waitAct(prompt);
-    complete();
+    ctx.complete();
   },
 });
