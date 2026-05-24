@@ -125,18 +125,19 @@ export const OPEN_SFC = act.addActionStep<Data>({
           );
 
           const suggestion = await waitForElement<HTMLElement>(() => {
-            // Prefer portal, then document.body — but only accept NEW elements
-            // (not ones that existed before we started typing) unless they match
-            // the destination text closely enough to trust.
+            // Use the known AddressSelector.suggestion CSS class first (most precise).
+            // Fall back to generic li/[role=option] if the class isn't populated.
             const searchRoot: Element = portal ?? document.body;
-            const candidates = searchRoot.querySelectorAll<HTMLElement>('li, [role="option"]');
+            const cls = C.AddressSelector?.suggestion;
+            const candidates = cls
+              ? searchRoot.querySelectorAll<HTMLElement>(`.${cls}`)
+              : searchRoot.querySelectorAll<HTMLElement>('li, [role="option"]');
             for (const el of candidates) {
-              const text = el.textContent?.toLowerCase() ?? '';
-              if (!text.includes(destLower)) continue;
-              // Prefer elements that appeared after we started typing (not pre-existing).
-              if (!preExistingLi.has(el)) return el;
+              if ((el.textContent?.toLowerCase() ?? '').includes(destLower)) {
+                if (!preExistingLi.has(el)) return el;
+              }
             }
-            // Fallback: accept pre-existing elements if text matches well.
+            // Fallback: accept pre-existing elements if text matches.
             for (const el of candidates) {
               if ((el.textContent?.toLowerCase() ?? '').includes(destLower)) return el;
             }
@@ -157,10 +158,10 @@ export const OPEN_SFC = act.addActionStep<Data>({
           log.warning('SFC address input not found — set destination manually');
         }
 
-        // Restore off-screen position; showMobileBufferContents() will reveal
-        // the buffer with the destination filled.
-        bufContainer.style.left = prevLeft;
-        bufContainer.style.visibility = prevVisibility;
+        // Do NOT restore left/visibility here. Restoring to -9999px after the
+        // suggestion click triggers APEX's CSS transition listener, which treats
+        // the slide-out as a navigation event and renders the buffer list.
+        // showMobileBufferContents() below sets the final visible state directly.
         console.log('[OPEN_SFC] destination fill block completed normally');
       } catch (e) {
         console.error('[OPEN_SFC] destination fill error:', e);
