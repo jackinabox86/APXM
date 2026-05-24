@@ -15,6 +15,7 @@ import {
   clearAllEntityStores,
   type WorkforceEntity,
 } from './entities';
+import { useProductionLoadedStore } from './entities/production';
 import { useSiteSourceStore } from './site-data-sources';
 import { useScreensStore, type ScreenInfo } from './screens';
 import { useCompanyStore } from './company';
@@ -232,6 +233,9 @@ export function initMessageHandlers(): void {
     if (Array.isArray(payload?.productionLines)) {
       useProductionStore.getState().setAll(payload.productionLines);
       useProductionStore.getState().setFetched('websocket');
+      useProductionLoadedStore.getState().markSitesLoaded(
+        payload.productionLines.map((l) => l.siteId).filter(Boolean)
+      );
     } else {
       warn('PRODUCTION_PRODUCTION_LINES: unexpected payload structure', payload);
     }
@@ -252,6 +256,7 @@ export function initMessageHandlers(): void {
         for (const id of staleIds) {
           useProductionStore.getState().removeOne(id);
         }
+        useProductionLoadedStore.getState().markSitesLoaded([...siteIds]);
       }
       useProductionStore.getState().setMany(payload.productionLines);
       useProductionStore.getState().setFetched('websocket');
