@@ -1,26 +1,21 @@
 // Ported from refined-prun src/features/XIT/ACT/action-steps/OPEN_SFC.ts.
 //
 // Mobile adaptation:
-// - Buffer is opened via requestTile (the same proven path used by MTRA_TRANSFER).
-//   The user taps ACT once to trigger the automated open; the runner then drives
-//   the SFC form itself without any further manual interaction.
-// - If a destination is provided, the AddressSelector input is filled using
-//   setInputValue (native-setter + 'input' event). This fires the same
-//   'input-changed' handler that APEX's autocomplete uses (confirmed by console:
-//   "suggestions fetch requested: ... -> input-changed"), and avoids making the
-//   buffer visible — which would allow keyboard events to bubble into APEX's
-//   navigation handlers and cause the buffer to navigate back unexpectedly.
-//   Programmatic .click() on the suggestion works even with the buffer hidden
-//   (WebKit only blocks focus/keyboard events on hidden elements, not mouse clicks).
-// - Destination should be the planet's natural ID (e.g. "ZV-307D") for reliable
-//   autocomplete matching.
+// - Buffer is opened via requestTile (same proven path as MTRA_TRANSFER).
+// - Destination is filled by mirroring the selectMaterial pattern from
+//   cont-utils.ts: make buffer visible, focus, char-by-char keyboard simulation,
+//   then find the first autosuggest entry by text content.
+//   setInputValue alone triggers the fetch but not the DOM render of the dropdown;
+//   the keyboard event sequence is required for the suggestions to appear.
+//   Suggestion matching uses text content rather than a specific CSS class because
+//   the AddressSelector's suggestion CSS class name is not known in advance.
 // - showMobileBufferContents() leaves the SFC buffer visible in APEX so the
-//   user can see it and tap TAKE FLIGHT after switching via Show APEX in the header.
+//   user can tap TAKE FLIGHT after switching via Show APEX in the header.
 
 import { act } from '../act-registry';
 import { useShipsStore } from '../../../stores/entities/ships';
-import { clickElement, sleep } from '../_compat';
-import { setInputValue } from '../../buffer-refresh/dom-helpers';
+import { focusElement, clickElement, sleep } from '../_compat';
+import { waitForElement } from '../../buffer-refresh/dom-helpers';
 import { showMobileBufferContents } from '../../mobile-buffer-navigator';
 import type { AssertFn } from '../shared-types';
 
@@ -56,31 +51,63 @@ export const OPEN_SFC = act.addActionStep<Data>({
     // Auto-fill destination if one was specified.
     if (data.destination) {
       setStatus(`Setting destination to ${data.destination}...`);
+      const bufContainer = tile.anchor as HTMLElement;
 
-      // Find the destination AddressSelector input inside the SFC buffer.
-      // C.AddressSelector.input is populated from APEX's injected CSS.
+      // Mirror selectMaterial (cont-utils.ts): make buffer visible before any
+      // focus or keyboard interaction — WebKit blocks those events on hidden elements.
+      const prevVisibility = bufContainer.style.visibility;
+      const prevLeft = bufContainer.style.left;
+      bufContainer.style.visibility = 'visible';
+      bufContainer.style.left = '0px';
+
+      // Find the AddressSelector input inside the SFC buffer.
       const input = _$$<HTMLInputElement>(tile.anchor, C.AddressSelector.input)[0];
       if (input) {
-        // Use setInputValue (native-setter + 'input' event) while the buffer stays
-        // hidden. This fires APEX's autocomplete 'input-changed' handler without
-        // making the buffer visible — keeping the buffer visible during typing
-        // allows keyboard events to bubble into APEX's navigation handlers and
-        // causes the buffer to navigate back to the card list.
-        setInputValue(input, data.destination);
-        await sleep(500); // allow the autocomplete fetch to complete
+        focusElement(input);
+        await sleep(100);
 
-        // Find the first autosuggest entry. The portal may be outside #container.
-        const portal =
-          (document.getElementById('autosuggest-portal') as HTMLElement | null) ?? document.body;
-        const suggestion = (await $(
-          portal,
-          C.AddressSelector.suggestionContent,
-          3000,
-        )) as HTMLElement | null;
+        // Clear any existing value.
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value',
+        )?.set;
+        if (nativeSetter) nativeSetter.call(input, '');
+        else input.value = '';
+        input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        await sleep(50);
+
+        // Char-by-char keyboard simulation — mirrors selectMaterial in cont-utils.ts.
+        // setInputValue alone only triggers the fetch; the keydown/keyup sequence is
+        // what causes APEX to render the suggestion dropdown.
+        for (const char of data.destination) {
+          input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true, cancelable: true }));
+          input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true, cancelable: true }));
+          if (nativeSetter) nativeSetter.call(input, input.value + char);
+          else input.value += char;
+          input.dispatchEvent(new InputEvent('input', { data: char, inputType: 'insertText', bubbles: true }));
+          input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true, cancelable: true }));
+          await sleep(30);
+        }
+
+        // Search for the first suggestion that contains the destination text.
+        // Instead of relying on C.AddressSelector.suggestionContent (CSS class
+        // unknown), match by text content — the same approach selectMaterial uses
+        // to match entries by C.ColoredIcon.label text content.
+        const destLower = data.destination.toLowerCase();
+        const portal = document.getElementById('autosuggest-portal') as HTMLElement | null;
+        const searchRoot: Element = portal ?? document.body;
+
+        const suggestion = await waitForElement<HTMLElement>(() => {
+          const candidates = searchRoot.querySelectorAll<HTMLElement>('li, [role="option"]');
+          for (const el of candidates) {
+            if (el.textContent?.toLowerCase().includes(destLower)) {
+              return el;
+            }
+          }
+          return null;
+        }, 3000);
 
         if (suggestion) {
-          // Programmatic .click() works on hidden elements — WebKit only blocks
-          // focus and keyboard events on visibility:hidden / off-screen elements.
           await clickElement(suggestion);
           log.info(`Destination set: ${data.destination}`);
         } else {
@@ -89,10 +116,14 @@ export const OPEN_SFC = act.addActionStep<Data>({
       } else {
         log.warning('SFC address input not found — set destination manually');
       }
+
+      // Restore off-screen position; showMobileBufferContents() will reveal
+      // the buffer with the destination filled.
+      bufContainer.style.left = prevLeft;
+      bufContainer.style.visibility = prevVisibility;
     }
 
-    // Leave the SFC buffer visible in APEX so the user can see and interact
-    // with it after tapping Show APEX in the APXM header.
+    // Leave the SFC buffer visible in APEX.
     showMobileBufferContents();
 
     await waitAct(
