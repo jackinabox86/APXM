@@ -108,7 +108,7 @@ export function BasesMiniList() {
         Bases
       </button>
       <span className="text-xs font-semibold text-apxm-muted uppercase w-10 text-center">Burn</span>
-      <span className="text-xs font-semibold text-apxm-muted uppercase w-10 text-center ml-1">Repair</span>
+      <span className="text-xs font-semibold text-apxm-muted uppercase w-14 text-center ml-1">Repair</span>
       <span className="text-xs font-semibold text-apxm-muted uppercase w-10 text-center ml-1">Prod</span>
     </div>
   );
@@ -146,7 +146,7 @@ export function BasesMiniList() {
                 <span className="text-xs text-apxm-muted">?</span>
               )}
             </div>
-            <div className="w-10 flex justify-center ml-1">
+            <div className="w-14 flex justify-center ml-1">
               <RepairAgeBadge days={repairBySite.get(site.siteId) ?? null} />
             </div>
             <div className="w-10 flex justify-center ml-1">
