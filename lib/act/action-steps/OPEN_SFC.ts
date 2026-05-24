@@ -45,71 +45,107 @@ export const OPEN_SFC = act.addActionStep<Data>({
 
     // requestTile follows the proven APXM pattern: waitAct (user taps ACT) →
     // openMobileBuffer (runner navigates and opens the buffer automatically).
+    console.log('[OPEN_SFC] calling requestTile for SFC', ship.registration);
     const tile = await requestTile(`SFC ${ship.registration}`);
+    console.log('[OPEN_SFC] requestTile returned:', tile ? 'tile' : 'null');
     if (!tile) return;
 
     // Auto-fill destination if one was specified.
-    // Wrapped in try-catch so any exception (APEX event handler throw, wrong element
-    // click, etc.) is contained here — the runner must always reach waitAct() so the
-    // buffer stays open for the user to tap Show APEX and take flight.
+    // Wrapped in try-catch so any exception is contained — the runner must always
+    // reach waitAct() so the buffer stays open for the user to take flight.
     if (data.destination) {
       try {
+        console.log('[OPEN_SFC] starting destination fill for:', data.destination);
+        console.log('[OPEN_SFC] C.AddressSelector keys:', JSON.stringify(C.AddressSelector));
         setStatus(`Setting destination to ${data.destination}...`);
         const bufContainer = tile.anchor as HTMLElement;
+        const prevVisibility = bufContainer.style.visibility;
+        const prevLeft = bufContainer.style.left;
 
         // Mirror selectMaterial (cont-utils.ts): make buffer visible before any
         // focus or keyboard interaction — WebKit blocks those events on hidden elements.
-        const prevVisibility = bufContainer.style.visibility;
-        const prevLeft = bufContainer.style.left;
         bufContainer.style.visibility = 'visible';
         bufContainer.style.left = '0px';
 
         // Find the AddressSelector input inside the SFC buffer.
         const input = _$$<HTMLInputElement>(tile.anchor, C.AddressSelector.input)[0];
+        console.log('[OPEN_SFC] AddressSelector.input found:', !!input, input?.tagName, input?.className?.slice(0, 60));
+
         if (input) {
+          // Focus the input — on mobile, this may trigger APEX to navigate to
+          // a full-screen destination picker (second "star graph initialized" in
+          // the console). After focus we re-query the input from the live DOM
+          // in case the picker remounted a new input element.
           focusElement(input);
-          await sleep(100);
+          await sleep(200);
+
+          // Re-query after focus: if APEX navigated to a destination picker the
+          // stale input reference would dispatch events to a detached node.
+          const liveInput = _$$<HTMLInputElement>(document.body, C.AddressSelector.input)
+            .find(el => el.offsetParent !== null && !el.closest('apxm-overlay'));
+          const activeInput = liveInput ?? input;
+          console.log('[OPEN_SFC] liveInput after focus:', !!liveInput, liveInput === input ? '(same)' : '(different)');
 
           // Clear any existing value.
           const nativeSetter = Object.getOwnPropertyDescriptor(
             HTMLInputElement.prototype,
             'value',
           )?.set;
-          if (nativeSetter) nativeSetter.call(input, '');
-          else input.value = '';
-          input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+          if (nativeSetter) nativeSetter.call(activeInput, '');
+          else activeInput.value = '';
+          activeInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
           await sleep(50);
 
           // Char-by-char keyboard simulation — mirrors selectMaterial in cont-utils.ts.
           // setInputValue alone only triggers the fetch; the keydown/keyup sequence is
           // what causes APEX to render the suggestion dropdown.
           for (const char of data.destination) {
-            input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true, cancelable: true }));
-            input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true, cancelable: true }));
-            if (nativeSetter) nativeSetter.call(input, input.value + char);
-            else input.value += char;
-            input.dispatchEvent(new InputEvent('input', { data: char, inputType: 'insertText', bubbles: true }));
-            input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true, cancelable: true }));
+            activeInput.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true, cancelable: true }));
+            activeInput.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true, cancelable: true }));
+            if (nativeSetter) nativeSetter.call(activeInput, activeInput.value + char);
+            else activeInput.value += char;
+            activeInput.dispatchEvent(new InputEvent('input', { data: char, inputType: 'insertText', bubbles: true }));
+            activeInput.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true, cancelable: true }));
             await sleep(30);
           }
 
+          console.log('[OPEN_SFC] finished typing, searching for suggestions');
+
           // Search for the first suggestion that contains the destination text.
-          // Instead of relying on C.AddressSelector.suggestionContent (CSS class
-          // unknown), match by text content — the same approach selectMaterial uses
-          // to match entries by C.ColoredIcon.label text content.
+          // Search inside tile.anchor first (SFC buffer scope), then the autosuggest
+          // portal, then document.body as a last resort.
           const destLower = data.destination.toLowerCase();
           const portal = document.getElementById('autosuggest-portal') as HTMLElement | null;
-          const searchRoot: Element = portal ?? document.body;
+          console.log('[OPEN_SFC] autosuggest-portal found:', !!portal);
+
+          // Count existing li/option elements BEFORE suggestions so we can filter
+          // pre-existing noise (e.g. star-graph route nodes).
+          const preExistingLi = new Set(
+            Array.from(document.body.querySelectorAll<HTMLElement>('li, [role="option"]')),
+          );
 
           const suggestion = await waitForElement<HTMLElement>(() => {
+            // Prefer portal, then document.body — but only accept NEW elements
+            // (not ones that existed before we started typing) unless they match
+            // the destination text closely enough to trust.
+            const searchRoot: Element = portal ?? document.body;
             const candidates = searchRoot.querySelectorAll<HTMLElement>('li, [role="option"]');
             for (const el of candidates) {
-              if (el.textContent?.toLowerCase().includes(destLower)) {
-                return el;
-              }
+              const text = el.textContent?.toLowerCase() ?? '';
+              if (!text.includes(destLower)) continue;
+              // Prefer elements that appeared after we started typing (not pre-existing).
+              if (!preExistingLi.has(el)) return el;
+            }
+            // Fallback: accept pre-existing elements if text matches well.
+            for (const el of candidates) {
+              if ((el.textContent?.toLowerCase() ?? '').includes(destLower)) return el;
             }
             return null;
           }, 3000);
+
+          console.log('[OPEN_SFC] suggestion found:', !!suggestion,
+            suggestion?.tagName, suggestion?.className?.slice(0, 60),
+            JSON.stringify(suggestion?.textContent?.trim().slice(0, 80)));
 
           if (suggestion) {
             await clickElement(suggestion);
@@ -125,6 +161,7 @@ export const OPEN_SFC = act.addActionStep<Data>({
         // the buffer with the destination filled.
         bufContainer.style.left = prevLeft;
         bufContainer.style.visibility = prevVisibility;
+        console.log('[OPEN_SFC] destination fill block completed normally');
       } catch (e) {
         console.error('[OPEN_SFC] destination fill error:', e);
         log.warning(`Could not auto-fill destination — set ${data.destination} manually`);
@@ -132,11 +169,13 @@ export const OPEN_SFC = act.addActionStep<Data>({
     }
 
     // Leave the SFC buffer visible in APEX.
+    console.log('[OPEN_SFC] calling showMobileBufferContents');
     showMobileBufferContents();
-
+    console.log('[OPEN_SFC] calling waitAct');
     await waitAct(
       `SFC for ${shipLabel}${destMsg} ready — tap Show APEX, take flight, return to APXM, then tap ACT`,
     );
+    console.log('[OPEN_SFC] waitAct resolved — calling complete');
     complete();
   },
 });
