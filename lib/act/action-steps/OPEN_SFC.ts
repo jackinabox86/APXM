@@ -108,6 +108,13 @@ export const OPEN_SFC = act.addActionStep<Data>({
           } else {
             log.warning(`Suggestion for "${data.destination}" not visible — type it manually in Show APEX`);
           }
+
+          // Blur the input so that tapping "Show APEX" doesn't trigger a
+          // focus-loss event on APEX's AddressSelector. On mobile, the blur
+          // from a shadow-DOM tap causes APEX to close the dropdown and
+          // navigate back to the buffer card list.
+          input.blur();
+          await sleep(200);
         } else {
           log.warning('SFC address input not found — set destination manually in Show APEX');
         }
@@ -117,14 +124,12 @@ export const OPEN_SFC = act.addActionStep<Data>({
       }
     }
 
-    // showMobileBufferContents() is a no-op now that the navigator never hides
-    // #container, but kept here to make the intent explicit.
     showMobileBufferContents();
     console.log('[OPEN_SFC] reached waitAct — SFC form still active:',
       !!tile.anchor.querySelector('[class*="FormComponent__containerActive"]'));
 
     const tapMsg = data.destination
-      ? `SFC for ${shipLabel}${destMsg} ready — tap Show APEX, select "${data.destination}" in the dropdown, take flight, return to APXM, then tap ACT`
+      ? `SFC for ${shipLabel}${destMsg} ready — tap Show APEX, tap the destination field, select "${data.destination}", take flight, return to APXM, then tap ACT`
       : `SFC for ${shipLabel} ready — tap Show APEX, set destination, take flight, return to APXM, then tap ACT`;
 
     await waitAct(tapMsg);
