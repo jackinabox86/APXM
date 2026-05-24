@@ -41,7 +41,7 @@ export function deriveStaleness(entry: SiteSourceEntry | undefined): StalenessRe
   const ageMs = Date.now() - updatedAt;
   const stale = ageMs > STALE_THRESHOLD_MS;
   return {
-    text: `updated ${formatRelativeTime(updatedAt)} ago`,
+    text: `${formatRelativeTime(updatedAt)} ago`,
     isStale: stale,
     colorClass: stale ? 'text-apxm-text/40' : 'text-apxm-text/50',
   };

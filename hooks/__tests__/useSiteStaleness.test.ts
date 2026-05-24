@@ -57,8 +57,8 @@ describe('deriveStaleness', () => {
 
     expect(result.isStale).toBe(false);
     expect(result.colorClass).toBe('text-apxm-text/50');
-    expect(result.text).toMatch(/^updated/);
     expect(result.text).toContain('ago');
+    expect(result.text).not.toMatch(/^updated/);
   });
 
   it('returns stale websocket state after 5 hours', () => {
