@@ -58,7 +58,7 @@ export function BurnActView() {
 
   // Form state
   const [planet, setPlanet] = useState(activeActPlanet ?? '');
-  const [days, setDays] = useState('30');
+  const [days, setDays] = useState('10');
   const [exchange, setExchange] = useState('AI1');
   const [origin, setOrigin] = useState('');
   const [dest, setDest] = useState('');
