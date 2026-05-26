@@ -3,8 +3,8 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
-    name: 'APXM',
-    description: 'A mobile browser extension for Prosperous Universe',
+    name: 'OOG Mobile Fork',
+    description: "OOG fork of Zillatron's APXM mobile skin for Prosperous Universe",
     permissions: ['storage'],
     host_permissions: [
       'https://apex.prosperousuniverse.com/*',
@@ -21,7 +21,7 @@ export default defineConfig({
       // data-collection consent) not yet in WXT's bundled gecko type; cast
       // to the known-keys shape so the extra field still ships.
       gecko: {
-        id: 'apxm@27bit.dev',
+        id: '{35dd3136-cfd9-430f-81f3-14dfea993579}',
         strict_min_version: '142.0',
         data_collection_permissions: {
           required: ['none'],
