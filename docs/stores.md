@@ -1,6 +1,6 @@
 # Zustand Stores & State Patterns
 
-## Entity Stores (shadow batching during message bursts)
+## Entity Stores  (shadow batching during message bursts)
 
 - `sites` — Player's bases/stations and their properties
 - `production` — Production lines and queued orders
