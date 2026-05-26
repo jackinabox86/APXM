@@ -17,17 +17,10 @@ export default defineConfig({
       },
     ],
     browser_specific_settings: {
-      // `data_collection_permissions` is a newer Firefox manifest key (AMO
-      // data-collection consent) not yet in WXT's bundled gecko type; cast
-      // to the known-keys shape so the extra field still ships.
       gecko: {
         id: '{35dd3136-cfd9-430f-81f3-14dfea993579}',
         strict_min_version: '142.0',
-        data_collection_permissions: {
-          required: ['none'],
-          optional: [],
-        },
-      } as { id: string; strict_min_version: string },
+      },
       gecko_android: {
         strict_min_version: '120.0',
       },
