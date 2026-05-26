@@ -3,8 +3,8 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
-    name: 'APXM',
-    description: 'A mobile browser extension for Prosperous Universe',
+    name: 'OOG Mobile Fork',
+    description: "OOG fork of Zillatron's APXM mobile skin for Prosperous Universe",
     permissions: ['storage'],
     host_permissions: [
       'https://apex.prosperousuniverse.com/*',
